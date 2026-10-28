@@ -1,0 +1,131 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --primary: 221.2 83.2% 53.3%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 221.2 83.2% 53.3%;
+    --radius: 0.5rem;
+  }
+}
+
+@layer base {
+  * {
+    border-color: #e2e8f0;
+  }
+  .dark * {
+    border-color: #1e293b;
+  }
+  body {
+    background-color: #f8fafc;
+    color: #0f172a;
+    font-feature-settings: "rlig" 1, "calt" 1;
+    transition: background-color 0.2s ease, color 0.2s ease;
+  }
+  html.dark body {
+    background-color: #0b0f19;
+    color: #f1f5f9;
+  }
+}
+
+/* Scrollbar styles */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #f1f5f9; }
+::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 9999px; }
+::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+.dark ::-webkit-scrollbar-track { background: #0f172a; }
+.dark ::-webkit-scrollbar-thumb { background: #334155; border-radius: 9999px; }
+.dark ::-webkit-scrollbar-thumb:hover { background: #475569; }
+
+/* Smooth transitions */
+.transition-default { transition: all 0.15s ease; }
+
+/* Score circle animation */
+@keyframes scoreReveal {
+  from { stroke-dashoffset: 283; }
+  to { stroke-dashoffset: var(--target-offset); }
+}
+.score-circle { animation: scoreReveal 1s ease-out forwards; }
+
+/* File drop zone */
+.drop-zone-active { @apply border-blue-500 bg-blue-50; }
+.dark .drop-zone-active { @apply border-blue-400 bg-blue-950/40; }
+
+/* Skeleton loading */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.skeleton {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+.dark .skeleton {
+  background: linear-gradient(90deg, #1e293b 25%, #334155 50%, #1e293b 75%);
+  background-size: 200% 100%;
+}
+
+/* Comprehensive dark mode adaptations for seamless consistency */
+.dark .bg-white {
+  background-color: #111827;
+}
+.dark .bg-gray-50 {
+  background-color: #0b0f19;
+}
+.dark .bg-gray-100 {
+  background-color: #1f2937;
+}
+.dark .border-gray-100 {
+  border-color: #1f2937;
+}
+.dark .border-gray-200 {
+  border-color: #1f2937;
+}
+.dark .border-gray-300 {
+  border-color: #374151;
+}
+.dark .text-gray-900 {
+  color: #f9fafb;
+}
+.dark .text-gray-800 {
+  color: #f3f4f6;
+}
+.dark .text-gray-700 {
+  color: #e5e7eb;
+}
+.dark .text-gray-600 {
+  color: #d1d5db;
+}
+.dark .text-gray-500 {
+  color: #9ca3af;
+}
+.dark .text-gray-400 {
+  color: #6b7280;
+}
+.dark .hover\:bg-gray-50:hover {
+  background-color: #1f2937;
+}
+.dark .hover\:bg-gray-100:hover {
+  background-color: #374151;
+}
+.dark .hover\:text-gray-900:hover {
+  color: #ffffff;
+}

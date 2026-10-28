@@ -1,0 +1,202 @@
+// ============================================================================
+// CareerMatch AI - Prisma Schema
+// PostgreSQL via Supabase Connection
+// ============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Profile {
+  id                    String    @id @db.Uuid
+  fullName              String?   @map("full_name")
+  country               String?
+  preferredLocations    String[]  @default([]) @map("preferred_locations")
+  preferredJobTitles    String[]  @default([]) @map("preferred_job_titles")
+  experienceLevel       String?   @map("experience_level")
+  employmentPreferences String[]  @default([]) @map("employment_preferences")
+  remotePreference      String?   @map("remote_preference")
+  preferredIndustries   String[]  @default([]) @map("preferred_industries")
+  salaryRange           Json?     @map("salary_range")
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("profiles")
+}
+
+model Resume {
+  id               String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId           String             @map("user_id") @db.Uuid
+  originalFilename String             @map("original_filename")
+  storagePath      String?            @map("storage_path")
+  fileType         String             @map("file_type")
+  fileSize         Int                @map("file_size")
+  extractedText    String?            @map("extracted_text")
+  parsedContent    Json               @default("{}") @map("parsed_content")
+  processingStatus String             @default("completed") @map("processing_status")
+  createdAt        DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  analyses         ResumeAnalysis[]
+  suggestions      ResumeSuggestion[]
+  jobMatches       JobMatch[]
+  applications     JobApplication[]
+
+  @@index([userId], map: "idx_resumes_user_id")
+  @@index([createdAt(sort: Desc)], map: "idx_resumes_created_at")
+  @@map("resumes")
+}
+
+model ResumeAnalysis {
+  id                    String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId                String             @map("user_id") @db.Uuid
+  resumeId              String             @map("resume_id") @db.Uuid
+  overallScore          Int                @map("overall_score")
+  scoringVersion        String             @default("1.0.0") @map("scoring_version")
+  categoryScores        Json               @default("{}") @map("category_scores")
+  findings              Json               @default("[]")
+  recommendations       Json               @default("[]")
+  analysisCompleteness  Int                @default(100) @map("analysis_completeness")
+  targetJobTitle        String?            @map("target_job_title")
+  targetJobDescription  String?            @map("target_job_description")
+  createdAt             DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  resume                Resume             @relation(fields: [resumeId], references: [id], onDelete: Cascade)
+  suggestions           ResumeSuggestion[]
+
+  @@index([userId], map: "idx_resume_analyses_user_id")
+  @@index([resumeId], map: "idx_resume_analyses_resume_id")
+  @@map("resume_analyses")
+}
+
+model ResumeSuggestion {
+  id             String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId         String          @map("user_id") @db.Uuid
+  resumeId       String          @map("resume_id") @db.Uuid
+  analysisId     String?         @map("analysis_id") @db.Uuid
+  sectionName    String          @map("section_name")
+  originalText   String          @map("original_text")
+  suggestedText  String          @map("suggested_text")
+  explanation    String
+  suggestionType String          @default("improvement") @map("suggestion_type")
+  status         String          @default("pending")
+  createdAt      DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  resume         Resume          @relation(fields: [resumeId], references: [id], onDelete: Cascade)
+  analysis       ResumeAnalysis? @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+
+  @@index([userId], map: "idx_resume_suggestions_user_id")
+  @@index([resumeId], map: "idx_resume_suggestions_resume_id")
+  @@map("resume_suggestions")
+}
+
+model JobListing {
+  id                     String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  providerName           String           @map("provider_name")
+  externalJobId          String           @map("external_job_id")
+  title                  String
+  company                String
+  location               String
+  country                String
+  employmentType         String?          @map("employment_type")
+  workplaceType          String?          @map("workplace_type")
+  description            String
+  requiredSkills         Json             @default("[]") @map("required_skills")
+  preferredSkills        Json             @default("[]") @map("preferred_skills")
+  experienceRequirements String?          @map("experience_requirements")
+  educationRequirements  String?          @map("education_requirements")
+  salaryInformation      String?          @map("salary_information")
+  postingDate            DateTime?        @map("posting_date") @db.Timestamptz(6)
+  closingDate            DateTime?        @map("closing_date") @db.Timestamptz(6)
+  lastVerifiedAt         DateTime?        @map("last_verified_at") @db.Timestamptz(6)
+  sourceStatus           String           @default("verified") @map("source_status")
+  applicationUrl         String           @map("application_url")
+  isDemo                 Boolean          @default(false) @map("is_demo")
+  createdAt              DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  matches                JobMatch[]
+  savedJobs              SavedJob[]
+  applications           JobApplication[]
+
+  @@unique([providerName, externalJobId], map: "uq_provider_external_id")
+  @@index([country], map: "idx_job_listings_country")
+  @@index([title], map: "idx_job_listings_title")
+  @@map("job_listings")
+}
+
+model JobMatch {
+  id                  String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId              String     @map("user_id") @db.Uuid
+  resumeId            String     @map("resume_id") @db.Uuid
+  jobListingId        String     @map("job_listing_id") @db.Uuid
+  matchScore          Int        @map("match_score")
+  matchedSkills       Json       @default("[]") @map("matched_skills")
+  missingRequirements Json       @default("[]") @map("missing_requirements")
+  explanations        Json       @default("[]")
+  scoreBreakdown      Json       @default("{}") @map("score_breakdown")
+  scoringVersion      String     @default("1.0.0") @map("scoring_version")
+  createdAt           DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  resume              Resume     @relation(fields: [resumeId], references: [id], onDelete: Cascade)
+  jobListing          JobListing @relation(fields: [jobListingId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, resumeId, jobListingId], map: "uq_user_resume_job")
+  @@index([userId], map: "idx_job_matches_user_id")
+  @@map("job_matches")
+}
+
+model SavedJob {
+  id           String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId       String     @map("user_id") @db.Uuid
+  jobListingId String     @map("job_listing_id") @db.Uuid
+  createdAt    DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  jobListing   JobListing @relation(fields: [jobListingId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, jobListingId], map: "uq_user_saved_job")
+  @@index([userId], map: "idx_saved_jobs_user_id")
+  @@map("saved_jobs")
+}
+
+model JobApplication {
+  id           String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId       String     @map("user_id") @db.Uuid
+  jobListingId String     @map("job_listing_id") @db.Uuid
+  resumeId     String?    @map("resume_id") @db.Uuid
+  status       String     @default("interested")
+  appliedAt    DateTime?  @map("applied_at") @db.Timestamptz(6)
+  notes        String?    @default("")
+  followUpAt   DateTime?  @map("follow_up_at") @db.Timestamptz(6)
+  createdAt    DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  jobListing   JobListing @relation(fields: [jobListingId], references: [id], onDelete: Cascade)
+  resume       Resume?    @relation(fields: [resumeId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, jobListingId], map: "uq_user_job_application")
+  @@index([userId], map: "idx_job_applications_user_id")
+  @@index([status], map: "idx_job_applications_status")
+  @@map("job_applications")
+}
+
+model UserPreferences {
+  id                       String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId                   String   @unique @map("user_id") @db.Uuid
+  preferredLocations       String[] @default([]) @map("preferred_locations")
+  preferredJobTitles       String[] @default([]) @map("preferred_job_titles")
+  preferredEmploymentTypes String[] @default([]) @map("preferred_employment_types")
+  remotePreference         String?  @map("remote_preference")
+  salaryPreferences        Json?    @map("salary_preferences")
+  createdAt                DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("user_preferences")
+}
