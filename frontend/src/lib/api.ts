@@ -128,23 +128,26 @@ export async function getJob(id: string) {
   return res.data;
 }
 
-export async function getRecommendations(resumeId: string, minMatch?: number) {
-  const cacheKey = `recommendations_${resumeId}_${minMatch ?? ''}`;
+export async function getRecommendations(resumeId: string, params?: number | Record<string, string | number>) {
+  const queryParams = typeof params === 'object' ? { resumeId, ...params } : { resumeId, ...(params !== undefined ? { minMatch: params } : {}) };
+  const cacheKey = `recommendations_${JSON.stringify(queryParams)}`;
   const cached = appCache.get(cacheKey);
   if (cached) return cached;
 
-  const res = await api.get('/jobs/recommendations', { params: { resumeId, minMatch } });
-  appCache.set(cacheKey, res.data, 5 * 60 * 1000); // 5 min TTL
+  const res = await api.get('/jobs/recommendations', { params: queryParams });
+  appCache.set(cacheKey, res.data, 2 * 60 * 1000);
   return res.data;
 }
 
 export async function saveJob(id: string) {
   const res = await api.post(`/jobs/${id}/save`);
+  appCache.clear();
   return res.data;
 }
 
 export async function unsaveJob(id: string) {
   const res = await api.delete(`/jobs/${id}/save`);
+  appCache.clear();
   return res.data;
 }
 

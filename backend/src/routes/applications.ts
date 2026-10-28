@@ -3,7 +3,11 @@ import { v4 as uuidv4 } from 'uuid';
 import { authenticate, AuthenticatedRequest } from '../middleware/auth';
 import { AppError } from '../middleware/errorHandler';
 import { getActiveJobListings } from '../services/jobProviderService';
-import { dbSaveApplication, dbGetUserApplications } from '../services/supabaseService';
+import {
+  dbSaveApplication,
+  dbGetUserApplications,
+  dbCheckExistingApplication,
+} from '../services/supabaseService';
 import { ApiResponse, JobApplication, ApplicationStatus } from '../types';
 
 // In-memory application tracking store
@@ -52,11 +56,25 @@ applicationsRouter.post('/', authenticate, async (req: AuthenticatedRequest, res
     if (!jobListingId) throw new AppError('jobListingId is required', 400);
     if (!VALID_STATUSES.includes(status)) throw new AppError(`Invalid status. Valid: ${VALID_STATUSES.join(', ')}`, 400);
 
-    // Check for duplicate
-    const existing = Array.from(applicationStore.values()).find(
+    // Check for duplicate in database or in-memory store
+    const existingDb = await dbCheckExistingApplication(req.userId!, jobListingId);
+    const existingMem = Array.from(applicationStore.values()).find(
       (a) => a.userId === req.userId && a.jobListingId === jobListingId
     );
-    if (existing) throw new AppError('You already have an application for this job', 409);
+    const existing = existingDb || existingMem;
+
+    if (existing) {
+      const allJobs = await getActiveJobListings();
+      return res.json({
+        success: true,
+        data: {
+          ...existing,
+          jobListing: allJobs.find((j) => j.id === jobListingId),
+        },
+        message: 'This vacancy is already tracked in your Application Tracker.',
+        alreadyTracked: true,
+      } as ApiResponse);
+    }
 
     const app: JobApplication = {
       id: uuidv4(),

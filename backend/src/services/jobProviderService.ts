@@ -10,15 +10,61 @@ interface CacheEntry {
 let cachedLiveJobs: CacheEntry | null = null;
 const CACHE_TTL_MS = 30 * 60 * 1000;
 
-// Common tech and professional keywords to extract from job descriptions
+// Multi-industry skills and competencies across all career paths
 const KNOWN_SKILLS = [
+  // Tech & Software
   'React', 'Node.js', 'TypeScript', 'JavaScript', 'Python', 'Java', 'C#', '.NET',
   'PostgreSQL', 'MySQL', 'MongoDB', 'Redis', 'GraphQL', 'REST APIs',
   'AWS', 'Azure', 'GCP', 'Docker', 'Kubernetes', 'CI/CD', 'Terraform', 'Linux',
   'HTML', 'CSS', 'Tailwind CSS', 'Next.js', 'Vue', 'Angular',
   'Machine Learning', 'Data Analysis', 'SQL', 'Pandas', 'TensorFlow', 'PyTorch',
   'Figma', 'UI Design', 'UX Research', 'Agile', 'Scrum', 'Product Management',
-  'JIRA', 'Git', 'DevOps', 'Microservices', 'Unit Testing', 'Spring Boot', 'Django'
+  'JIRA', 'Git', 'DevOps', 'Microservices', 'Unit Testing', 'Spring Boot', 'Django',
+  // Accounting, Finance & Banking
+  'Financial Analysis', 'Financial Reporting', 'Credit Risk Assessment', 'Cash Flow Modeling',
+  'Auditing', 'External Auditing', 'IFRS / SLFRS', 'Internal Controls', 'Cost Optimization',
+  'Management Accounting', 'Budgeting & Forecasting', 'Variance Analysis', 'Taxation', 'Corporate Banking',
+  'CIMA', 'ACCA', 'CA Sri Lanka', 'CFA', 'Excel Financial Modeling', 'SAP S/4HANA',
+  // Agriculture & Agribusiness
+  'Agronomy', 'Crop Protection', 'Soil Nutrient Analysis', 'Field Trial Management',
+  'GAP Certification', 'Farmer Advisory Services', 'Seed Production', 'Agricultural Extension',
+  'Farm Operations', 'Precision Agriculture', 'Pest Management',
+  // Business Management & Administration
+  'Strategic Planning', 'Operations Management', 'Lean Manufacturing', 'Value Stream Mapping',
+  'Continuous Improvement', 'Kaizen', 'Six Sigma', 'Production Scheduling', 'Capacity Planning',
+  'Business Analysis', 'Market Research', 'Financial Valuation', 'Presentation Skills',
+  // Marketing & Sales
+  'Brand Management', 'Consumer Insights', 'Digital Marketing', 'Campaign Execution',
+  'Trade Marketing', 'Distributor Operations', 'Sales Pipeline', 'Retail Negotiation',
+  'SEO/SEM', 'Content Strategy', 'Social Media Marketing', 'Google Ads', 'CIM UK',
+  // Human Resources
+  'HR Business Partnering', 'Employee Relations', 'Sri Lankan Labor Law', 'Performance Management',
+  'Talent Development', 'Talent Sourcing', 'Full-Cycle Recruitment', 'Grievance Handling',
+  'Applicant Tracking Systems (ATS)', 'Employer Branding', 'CIPM',
+  // Engineering & Manufacturing
+  'Mechanical Maintenance', 'Predictive Maintenance', 'Rotating Machinery', 'Vibration Analysis',
+  'Civil Engineering', 'Quality Assurance (QA/QC)', 'Material Testing', 'FIDIC Standards',
+  'Site Inspection', 'AutoCAD', 'SolidWorks', 'Root Cause Analysis', 'Industrial Safety',
+  // Healthcare & Life Sciences
+  'Biomedical Instrumentation', 'Medical Equipment Calibration', 'Clinical Safety Standards',
+  'Clinical Pharmacology', 'Prescription Auditing', 'Therapeutic Drug Monitoring',
+  'Inpatient Pharmacy Operations', 'Patient Medication Counseling', 'ACHSI / ISO 15189',
+  // Logistics & Supply Chain
+  'Freight Forwarding', 'Customs Clearance (ASYCUDA)', 'Shipping Documentation', 'Ocean & Air Freight',
+  'Multimodal Logistics', 'Supply Chain Operations', 'Purchase Order Tracking', 'Warehouse Management',
+  'EDI Integration', 'Inventory Control', 'Incoterms 2020', 'CILT Certification',
+  // Hospitality & Tourism
+  'Food & Beverage Operations', 'Banquet Management', 'HACCP Standards', 'Guest Relations',
+  'Hospitality Front Office', 'Sustainable Tourism', 'Customer Experience Management',
+  // Education & Research
+  'Academic Lecturing', 'Curriculum Development', 'Research Publication', 'Higher Education',
+  'Student Mentoring', 'Coursework Assessment',
+  // Construction & Trades
+  'Structural Engineering', 'Site Supervision', 'Reinforced Concrete', 'BOQ Reconciliation',
+  'Construction Safety', 'Subcontractor Management',
+  // General & Graduate
+  'Problem Solving', 'Communication Skills', 'Team Collaboration', 'Analytical Ability',
+  'Critical Thinking', 'Project Coordination', 'MS Excel', 'PowerPoint Presentation'
 ];
 
 /**

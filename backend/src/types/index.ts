@@ -128,6 +128,7 @@ export interface JobListing {
   company: string;
   location: string;
   country: string;
+  category?: string;
   employmentType?: string;
   workplaceType?: string;
   description: string;
@@ -154,6 +155,7 @@ export interface JobMatch {
   missingRequirements: string[];
   explanations: string[];
   scoreBreakdown: JobMatchBreakdown;
+  isEstimate?: boolean;
 }
 
 export interface JobMatchBreakdown {

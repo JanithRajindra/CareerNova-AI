@@ -1,6 +1,6 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { config } from '../config';
-import { ParsedResume, JobApplication, UserProfile, ATSScore } from '../types';
+import { ParsedResume, JobApplication, UserProfile, ATSScore, JobMatch } from '../types';
 
 let supabaseAdminInstance: SupabaseClient | null = null;
 
@@ -416,3 +416,131 @@ export async function dbSaveProfileAndPreferences(
     return false;
   }
 }
+
+// ============================================================================
+// Saved Jobs Database Operations (saved_jobs Table)
+// ============================================================================
+
+export async function dbSaveSavedJob(userId: string, jobListingId: string): Promise<boolean> {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return false;
+
+  try {
+    const { error } = await supabase.from('saved_jobs').upsert(
+      {
+        user_id: userId,
+        job_listing_id: jobListingId,
+        created_at: new Date().toISOString(),
+      },
+      { onConflict: 'user_id,job_listing_id' }
+    );
+    return !error;
+  } catch {
+    return false;
+  }
+}
+
+export async function dbRemoveSavedJob(userId: string, jobListingId: string): Promise<boolean> {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return false;
+
+  try {
+    const { error } = await supabase
+      .from('saved_jobs')
+      .delete()
+      .eq('user_id', userId)
+      .eq('job_listing_id', jobListingId);
+    return !error;
+  } catch {
+    return false;
+  }
+}
+
+export async function dbGetUserSavedJobIds(userId: string): Promise<string[] | null> {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return null;
+
+  try {
+    const { data, error } = await supabase
+      .from('saved_jobs')
+      .select('job_listing_id')
+      .eq('user_id', userId);
+
+    if (error || !data) return null;
+    return data.map((r: any) => r.job_listing_id);
+  } catch {
+    return null;
+  }
+}
+
+// ============================================================================
+// Job Matches Database Operations (job_matches Table)
+// ============================================================================
+
+export async function dbSaveJobMatch(
+  match: JobMatch,
+  userId: string,
+  resumeId: string
+): Promise<boolean> {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return false;
+
+  try {
+    const { error } = await supabase.from('job_matches').upsert(
+      {
+        user_id: userId,
+        resume_id: resumeId,
+        job_listing_id: match.jobListing.id,
+        match_score: match.matchScore,
+        matched_skills: match.matchedSkills,
+        missing_requirements: match.missingRequirements,
+        explanations: match.explanations,
+        score_breakdown: match.scoreBreakdown,
+        scoring_version: '2.0.0',
+        created_at: new Date().toISOString(),
+      },
+      { onConflict: 'user_id,resume_id,job_listing_id' }
+    );
+    return !error;
+  } catch {
+    return false;
+  }
+}
+
+// ============================================================================
+// Job Applications Duplicate Check
+// ============================================================================
+
+export async function dbCheckExistingApplication(
+  userId: string,
+  jobListingId: string
+): Promise<JobApplication | null> {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return null;
+
+  try {
+    const { data, error } = await supabase
+      .from('job_applications')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('job_listing_id', jobListingId)
+      .maybeSingle();
+
+    if (error || !data) return null;
+    return {
+      id: data.id,
+      userId: data.user_id,
+      jobListingId: data.job_listing_id,
+      resumeId: data.resume_id || undefined,
+      status: data.status,
+      appliedAt: data.applied_at || undefined,
+      notes: data.notes || '',
+      followUpAt: data.follow_up_at || undefined,
+      createdAt: data.created_at,
+      updatedAt: data.updated_at,
+    };
+  } catch {
+    return null;
+  }
+}
+

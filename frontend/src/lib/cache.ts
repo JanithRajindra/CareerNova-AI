@@ -55,6 +55,20 @@ export const appCache = {
       localStorage.removeItem(`${CACHE_PREFIX}${key}`);
     } catch {}
   },
+
+  /**
+   * Clear all transient cache entries
+   */
+  clear(): void {
+    try {
+      const keys = Object.keys(sessionStorage);
+      for (const k of keys) {
+        if (k.startsWith(CACHE_PREFIX)) {
+          sessionStorage.removeItem(k);
+        }
+      }
+    } catch {}
+  },
 };
 
 export interface ClearCacheResult {

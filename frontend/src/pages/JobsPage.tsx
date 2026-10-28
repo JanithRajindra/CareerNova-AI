@@ -1,24 +1,36 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AppLayout, PageHeader } from '@/components/Layout';
 import { Card, Button, Badge, EmptyState } from '@/components/ui';
 import { useResumeStore } from '@/store';
-import { listJobs, getRecommendations, saveJob, unsaveJob, createApplication } from '@/lib/api';
+import {
+  listJobs,
+  getRecommendations,
+  saveJob,
+  unsaveJob,
+  createApplication,
+  listResumes,
+  listApplications,
+} from '@/lib/api';
 import {
   Briefcase, MapPin, DollarSign, Clock, Bookmark, BookmarkCheck,
   Search, Sparkles, Filter, ChevronRight, CheckCircle2, AlertCircle,
-  ExternalLink, Building2, Send
+  ExternalLink, Building2, Send, RotateCcw, FileText, Check, ShieldCheck,
+  GraduationCap, Layers, ArrowUpRight, HelpCircle
 } from 'lucide-react';
 
-interface JobListing {
+interface JobListingItem {
   id: string;
   title: string;
   company: string;
   location: string;
+  category?: string;
   employmentType: string;
+  workplaceType?: string;
   salaryMin?: number;
   salaryMax?: number;
   currency?: string;
+  salaryInformation?: string;
   matchScore: number;
   matchedSkills: string[];
   missingSkills: string[];
@@ -29,51 +41,156 @@ interface JobListing {
   providerName?: string;
   country?: string;
   applicationUrl?: string;
+  sourceStatus?: string;
+  isEstimate?: boolean;
+  explanations?: string[];
+  scoreBreakdown?: {
+    requiredSkills: number;
+    experience: number;
+    responsibilities: number;
+    education: number;
+    preferredSkills: number;
+  };
 }
+
+const INDUSTRY_CATEGORIES = [
+  'All Industries',
+  'Accounting, Finance, and Banking',
+  'Agriculture and Agribusiness',
+  'Business Management and Administration',
+  'Marketing, Sales, and Customer Service',
+  'Human Resources',
+  'Engineering and Manufacturing',
+  'Healthcare and Life Sciences',
+  'Logistics and Supply Chain',
+  'Hospitality and Tourism',
+  'Software Engineering and IT',
+  'Education and Research',
+  'Construction and Skilled Trades',
+  'Design, Media, and Communications',
+  'Government and Public Sector',
+  'Internships, Graduate Trainee Programs, and Entry-Level Jobs',
+];
+
+const LOCATIONS = [
+  'All Locations',
+  'Colombo',
+  'Kandy',
+  'Galle',
+  'Gampaha',
+  'Kurunegala',
+  'Trincomalee',
+  'Remote (Sri Lanka)',
+];
 
 export default function JobsPage() {
   const navigate = useNavigate();
-  const { resumes, activeResumeId } = useResumeStore();
+  const { resumes, activeResumeId, setResumes, setActiveResume } = useResumeStore();
 
-  const [jobs, setJobs] = useState<JobListing[]>([]);
+  const [jobs, setJobs] = useState<JobListingItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [selectedJob, setSelectedJob] = useState<JobListingItem | null>(null);
+  const [appliedJobs, setAppliedJobs] = useState<Record<string, boolean>>({});
+
+  // Filter States
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterType, setFilterType] = useState('all');
+  const [categoryFilter, setCategoryFilter] = useState('All Industries');
+  const [locationFilter, setLocationFilter] = useState('All Locations');
+  const [workplaceFilter, setWorkplaceFilter] = useState('all');
+  const [employmentFilter, setEmploymentFilter] = useState('all');
+  const [experienceFilter, setExperienceFilter] = useState('all');
   const [portalFilter, setPortalFilter] = useState('all');
   const [minMatchFilter, setMinMatchFilter] = useState<number>(0);
-  const [selectedJob, setSelectedJob] = useState<JobListing | null>(null);
-  const [appliedJobs, setAppliedJobs] = useState<Record<string, boolean>>({});
-  const [loading, setLoading] = useState(false);
+  const [sortBy, setSortBy] = useState<'match' | 'recent' | 'title' | 'company'>('match');
 
+  // Load existing resumes on mount if empty in store
+  useEffect(() => {
+    async function initResumes() {
+      try {
+        const res = await listResumes();
+        if (res.data?.length) {
+          setResumes(res.data);
+          if (!activeResumeId) {
+            setActiveResume(res.data[0].id);
+          }
+        }
+      } catch {
+        // offline / local fallback
+      }
+    }
+    if (!resumes.length) {
+      initResumes();
+    }
+  }, []);
+
+  // Load tracked applications to flag applied jobs
+  useEffect(() => {
+    async function loadTracked() {
+      try {
+        const appRes = await listApplications();
+        if (appRes.data?.length) {
+          const map: Record<string, boolean> = {};
+          appRes.data.forEach((a: any) => {
+            if (a.jobListingId) map[a.jobListingId] = true;
+          });
+          setAppliedJobs((prev) => ({ ...prev, ...map }));
+        }
+      } catch {
+        // ignore
+      }
+    }
+    loadTracked();
+  }, []);
+
+  // Fetch jobs or personalized recommendations
   useEffect(() => {
     async function fetchJobs() {
       setLoading(true);
       try {
-        let loaded: any[] = [];
+        let loaded: JobListingItem[] = [];
+
+        // 1. If an active resume is available, compute genuine recommendations
         if (activeResumeId) {
-          const recRes = await getRecommendations(activeResumeId);
-          if (recRes.data?.length) {
-            loaded = recRes.data.map((m: any) => ({
-              id: m.jobListing.id,
-              title: m.jobListing.title,
-              company: m.jobListing.company,
-              location: m.jobListing.location,
-              employmentType: m.jobListing.employmentType || 'Full-time',
-              experienceLevel: m.jobListing.experienceRequirements || 'Mid-Senior',
-              description: m.jobListing.description,
-              matchScore: m.matchScore,
-              matchedSkills: m.matchedSkills || [],
-              missingSkills: m.missingRequirements || [],
-              postedAt: m.jobListing.postingDate ? new Date(m.jobListing.postingDate).toLocaleDateString() : 'Recent',
-              applicationUrl: m.jobListing.applicationUrl,
-              sourceStatus: m.jobListing.sourceStatus,
-              providerName: m.jobListing.providerName,
-              salaryInformation: m.jobListing.salaryInformation,
-              country: m.jobListing.country,
-              isSaved: false,
-            }));
+          try {
+            const recRes = await getRecommendations(activeResumeId);
+            if (recRes.data?.length) {
+              loaded = recRes.data.map((m: any) => ({
+                id: m.jobListing.id,
+                title: m.jobListing.title,
+                company: m.jobListing.company,
+                location: m.jobListing.location,
+                category: m.jobListing.category || 'General Careers',
+                employmentType: m.jobListing.employmentType || 'Full-time',
+                workplaceType: m.jobListing.workplaceType || 'Onsite',
+                experienceLevel: m.jobListing.experienceRequirements || 'Mid-Senior',
+                description: m.jobListing.description,
+                matchScore: m.matchScore,
+                matchedSkills: m.matchedSkills || [],
+                missingSkills: m.missingRequirements || [],
+                postedAt: m.jobListing.postingDate
+                  ? new Date(m.jobListing.postingDate).toLocaleDateString(undefined, {
+                      month: 'short',
+                      day: 'numeric',
+                      year: 'numeric',
+                    })
+                  : 'Recent',
+                applicationUrl: m.jobListing.applicationUrl,
+                sourceStatus: m.jobListing.sourceStatus || 'verified',
+                providerName: m.jobListing.providerName,
+                salaryInformation: m.jobListing.salaryInformation,
+                country: m.jobListing.country,
+                isSaved: !!m.isSaved,
+                isEstimate: !!m.isEstimate,
+                explanations: m.explanations || [],
+                scoreBreakdown: m.scoreBreakdown,
+              }));
+            }
+          } catch (recErr) {
+            console.warn('[JobsPage] Recommendation error, falling back to public browse:', recErr);
           }
         }
 
+        // 2. If no resume was selected or recommendations returned empty, browse all live verified listings
         if (!loaded.length) {
           const res = await listJobs();
           if (res.data?.length) {
@@ -82,25 +199,36 @@ export default function JobsPage() {
               title: j.title,
               company: j.company,
               location: j.location,
+              category: j.category || 'General Careers',
               employmentType: j.employmentType || 'Full-time',
-              experienceLevel: j.experienceRequirements || 'Mid-Senior',
+              workplaceType: j.workplaceType || 'Onsite',
+              experienceLevel: j.experienceRequirements || 'Not specified',
               description: j.description,
-              matchScore: 85,
-              matchedSkills: j.requiredSkills || [],
-              missingSkills: j.preferredSkills || [],
-              postedAt: j.postingDate ? new Date(j.postingDate).toLocaleDateString() : 'Recent',
+              matchScore: 0, // Unscored without CV
+              matchedSkills: j.requiredSkills?.slice(0, 4) || [],
+              missingSkills: [],
+              postedAt: j.postingDate
+                ? new Date(j.postingDate).toLocaleDateString(undefined, {
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric',
+                  })
+                : 'Recent',
               applicationUrl: j.applicationUrl,
-              sourceStatus: j.sourceStatus,
+              sourceStatus: j.sourceStatus || 'verified',
               providerName: j.providerName,
               salaryInformation: j.salaryInformation,
               country: j.country,
-              isSaved: false,
+              isSaved: !!j.isSaved,
+              isEstimate: false,
+              explanations: [],
             }));
           }
         }
 
         setJobs(loaded);
-      } catch {
+      } catch (err) {
+        console.error('[JobsPage] Fetch failed:', err);
         setJobs([]);
       } finally {
         setLoading(false);
@@ -109,7 +237,8 @@ export default function JobsPage() {
     fetchJobs();
   }, [activeResumeId]);
 
-  async function handleToggleSave(job: JobListing, e: React.MouseEvent) {
+  // Toggle Save Job
+  async function handleToggleSave(job: JobListingItem, e: React.MouseEvent) {
     e.stopPropagation();
     const newSaved = !job.isSaved;
     setJobs((prev) =>
@@ -122,121 +251,329 @@ export default function JobsPage() {
         await unsaveJob(job.id);
       }
     } catch {
-      // optimistic update maintained
+      // optimistic update retained
     }
   }
 
-  async function handleApplyAndTrack(job: JobListing, e?: React.MouseEvent) {
+  // Safe Job Application Navigation & Tracker Recording
+  async function handleApplyAndTrack(job: JobListingItem, e?: React.MouseEvent) {
     if (e) e.stopPropagation();
-    try {
-      await createApplication({
-        jobListingId: job.id,
-        resumeId: activeResumeId || undefined,
-        status: 'applied',
-        notes: `Applied via CareerMatch AI recommendations for ${job.title} at ${job.company}.`,
-      });
-    } catch {}
-    setAppliedJobs((prev) => ({ ...prev, [job.id]: true }));
 
-    // Open real external job application link
-    const appUrl = (job as any).applicationUrl;
-    if (appUrl && appUrl.startsWith('http')) {
+    // 1. Avoid duplicate application calls if already tracked
+    if (!appliedJobs[job.id]) {
+      try {
+        await createApplication({
+          jobListingId: job.id,
+          resumeId: activeResumeId || undefined,
+          status: 'applied',
+          notes: `Applied via CareerMatch AI recommendations for ${job.title} at ${job.company}.`,
+        });
+        setAppliedJobs((prev) => ({ ...prev, [job.id]: true }));
+      } catch (err) {
+        console.warn('[ApplyAndTrack] Application tracking notice:', err);
+        setAppliedJobs((prev) => ({ ...prev, [job.id]: true }));
+      }
+    }
+
+    // 2. Safe navigation to exact verified vacancy or employer careers URL
+    const appUrl = job.applicationUrl;
+    if (appUrl && (appUrl.startsWith('https://') || appUrl.startsWith('http://'))) {
       window.open(appUrl, '_blank', 'noopener,noreferrer');
     }
   }
 
-  function handleOpenMatcher(job: JobListing, e: React.MouseEvent) {
+  // Open CV Deep Matcher
+  function handleOpenMatcher(job: JobListingItem, e: React.MouseEvent) {
     e.stopPropagation();
-    sessionStorage.setItem('matcher_prefill_job', JSON.stringify({
-      title: job.title,
-      company: job.company,
-      description: job.description + '\n\nRequired Skills: ' + [...job.matchedSkills, ...job.missingSkills].join(', '),
-    }));
+    sessionStorage.setItem(
+      'matcher_prefill_job',
+      JSON.stringify({
+        title: job.title,
+        company: job.company,
+        description:
+          job.description +
+          '\n\nRequired Skills: ' +
+          job.matchedSkills.join(', ') +
+          (job.missingSkills.length ? '\n\nPreferred / Gap Skills: ' + job.missingSkills.join(', ') : ''),
+      })
+    );
     navigate('/matcher');
   }
 
-  const filteredJobs = jobs.filter((job) => {
-    if (minMatchFilter > 0 && job.matchScore < minMatchFilter) return false;
-    if (filterType !== 'all') {
-      if (filterType === 'remote' && !job.location.toLowerCase().includes('remote')) return false;
-      if (filterType === 'full-time' && job.employmentType.toLowerCase() !== 'full-time') return false;
+  // Reset all filters
+  function handleResetFilters() {
+    setSearchQuery('');
+    setCategoryFilter('All Industries');
+    setLocationFilter('All Locations');
+    setWorkplaceFilter('all');
+    setEmploymentFilter('all');
+    setExperienceFilter('all');
+    setPortalFilter('all');
+    setMinMatchFilter(0);
+    setSortBy('match');
+  }
+
+  const isFiltered =
+    searchQuery.trim() !== '' ||
+    categoryFilter !== 'All Industries' ||
+    locationFilter !== 'All Locations' ||
+    workplaceFilter !== 'all' ||
+    employmentFilter !== 'all' ||
+    experienceFilter !== 'all' ||
+    portalFilter !== 'all' ||
+    minMatchFilter > 0;
+
+  // Filtered and Sorted Jobs
+  const filteredJobs = useMemo(() => {
+    return jobs
+      .filter((job) => {
+        // Match score threshold (only active if CV exists)
+        if (activeResumeId && minMatchFilter > 0 && job.matchScore < minMatchFilter) return false;
+
+        // Category filter
+        if (categoryFilter !== 'All Industries') {
+          if (!job.category || !job.category.toLowerCase().includes(categoryFilter.toLowerCase())) {
+            return false;
+          }
+        }
+
+        // Location filter
+        if (locationFilter !== 'All Locations') {
+          if (!job.location.toLowerCase().includes(locationFilter.toLowerCase())) return false;
+        }
+
+        // Workplace type
+        if (workplaceFilter !== 'all') {
+          if ((job.workplaceType || '').toLowerCase() !== workplaceFilter.toLowerCase()) return false;
+        }
+
+        // Employment type
+        if (employmentFilter !== 'all') {
+          if (job.employmentType.toLowerCase() !== employmentFilter.toLowerCase()) return false;
+        }
+
+        // Experience level
+        if (experienceFilter !== 'all') {
+          if (!job.experienceLevel.toLowerCase().includes(experienceFilter.toLowerCase())) return false;
+        }
+
+        // Portal / Source filter
+        if (portalFilter !== 'all') {
+          const provider = (job.providerName || '').toLowerCase();
+          if (!provider.includes(portalFilter.toLowerCase())) return false;
+        }
+
+        // Text search
+        if (searchQuery.trim()) {
+          const q = searchQuery.toLowerCase();
+          const matchTitle = job.title.toLowerCase().includes(q);
+          const matchComp = job.company.toLowerCase().includes(q);
+          const matchDesc = job.description.toLowerCase().includes(q);
+          const matchSkills = [...job.matchedSkills, ...job.missingSkills].some((s) =>
+            s.toLowerCase().includes(q)
+          );
+          if (!matchTitle && !matchComp && !matchDesc && !matchSkills) return false;
+        }
+
+        return true;
+      })
+      .sort((a, b) => {
+        if (sortBy === 'match') {
+          return b.matchScore - a.matchScore;
+        }
+        if (sortBy === 'recent') {
+          return new Date(b.postedAt).getTime() - new Date(a.postedAt).getTime();
+        }
+        if (sortBy === 'company') {
+          return a.company.localeCompare(b.company);
+        }
+        if (sortBy === 'title') {
+          return a.title.localeCompare(b.title);
+        }
+        return 0;
+      });
+  }, [
+    jobs,
+    searchQuery,
+    categoryFilter,
+    locationFilter,
+    workplaceFilter,
+    employmentFilter,
+    experienceFilter,
+    portalFilter,
+    minMatchFilter,
+    sortBy,
+    activeResumeId,
+  ]);
+
+  const activeResume = resumes.find((r) => r.id === activeResumeId);
+
+  // Industry badge color mapping
+  function getIndustryBadge(category?: string) {
+    const cat = (category || '').toLowerCase();
+    if (cat.includes('finance') || cat.includes('banking') || cat.includes('accounting')) {
+      return { label: 'Banking & Finance', bg: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800' };
     }
-    if (portalFilter !== 'all') {
-      const p = (job.providerName || '').toLowerCase();
-      if (!p.includes(portalFilter)) return false;
+    if (cat.includes('agri')) {
+      return { label: 'Agriculture & Agri', bg: 'bg-green-50 text-green-700 border-green-200 dark:bg-green-950/40 dark:text-green-300 dark:border-green-800' };
     }
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      const matchTitle = job.title.toLowerCase().includes(q);
-      const matchComp = job.company.toLowerCase().includes(q);
-      const matchSkills = [...job.matchedSkills, ...job.missingSkills].some((s) => s.toLowerCase().includes(q));
-      if (!matchTitle && !matchComp && !matchSkills) return false;
+    if (cat.includes('management') || cat.includes('business')) {
+      return { label: 'Business & Management', bg: 'bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-800' };
     }
-    return true;
-  });
+    if (cat.includes('marketing') || cat.includes('sales')) {
+      return { label: 'Marketing & Sales', bg: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800' };
+    }
+    if (cat.includes('human') || cat.includes('hr')) {
+      return { label: 'Human Resources', bg: 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800' };
+    }
+    if (cat.includes('health') || cat.includes('life')) {
+      return { label: 'Healthcare & Sciences', bg: 'bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-950/40 dark:text-teal-300 dark:border-teal-800' };
+    }
+    if (cat.includes('logistic') || cat.includes('supply')) {
+      return { label: 'Logistics & Supply Chain', bg: 'bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950/40 dark:text-orange-300 dark:border-orange-800' };
+    }
+    if (cat.includes('hospitality') || cat.includes('tour')) {
+      return { label: 'Hospitality & Tourism', bg: 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800' };
+    }
+    if (cat.includes('construct') || cat.includes('trade')) {
+      return { label: 'Construction & Civil', bg: 'bg-stone-50 text-stone-700 border-stone-200 dark:bg-stone-900/60 dark:text-stone-300 dark:border-stone-700' };
+    }
+    if (cat.includes('design') || cat.includes('media')) {
+      return { label: 'Design & Media', bg: 'bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200 dark:bg-fuchsia-950/40 dark:text-fuchsia-300 dark:border-fuchsia-800' };
+    }
+    if (cat.includes('intern') || cat.includes('trainee') || cat.includes('entry')) {
+      return { label: 'Graduate & Internship', bg: 'bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-800' };
+    }
+    if (cat.includes('software') || cat.includes('it')) {
+      return { label: 'Software & IT', bg: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800' };
+    }
+    return { label: category || 'Verified Career', bg: 'bg-gray-50 text-gray-700 border-gray-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700' };
+  }
 
   return (
     <AppLayout>
       <div className="p-6 max-w-7xl mx-auto space-y-6">
+        {/* Page Header */}
         <PageHeader
-          title="Sri Lankan Tech Job Recommendations"
-          description="Curated opportunities from TopJobs, ITJobs, ExpressJobs, and LinkedIn matched against your CV's verified skills."
+          title="Personalized Job Recommendations"
+          description="Discover relevant job opportunities across industries, matched against your CV, skills, experience, education, and career preferences."
           action={
             <Button
               variant="outline"
               size="sm"
               onClick={() => navigate('/saved')}
-              className="gap-2"
+              className="gap-2 dark:border-slate-700 dark:hover:bg-slate-800"
             >
-              <Bookmark size={15} />
+              <Bookmark size={15} className="text-blue-600 dark:text-blue-400" />
               View Saved Jobs ({jobs.filter((j) => j.isSaved).length})
             </Button>
           }
         />
 
-        {/* Quick Direct Access to Sri Lankan Job Portals */}
+        {/* Active CV Selection & Upload Banner */}
+        {activeResume ? (
+          <div className="bg-gradient-to-r from-blue-900/10 via-indigo-900/10 to-transparent dark:from-blue-950/40 dark:via-indigo-950/30 p-4 rounded-2xl border border-blue-200 dark:border-blue-900/60 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-10 h-10 rounded-xl bg-blue-600 dark:bg-blue-500 text-white flex items-center justify-center font-bold shrink-0 shadow-sm">
+                <FileText size={20} />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs font-bold text-gray-900 dark:text-white truncate">
+                    {activeResume.originalFilename}
+                  </span>
+                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-950/50 px-2 py-0.5 rounded-full border border-green-200 dark:border-green-800">
+                    <Check size={11} /> Active Matching Profile
+                  </span>
+                  {activeResume.nameDetected && (
+                    <span className="text-xs text-gray-500 dark:text-slate-400">
+                      • {activeResume.nameDetected}
+                    </span>
+                  )}
+                </div>
+                <p className="text-[12px] text-gray-500 dark:text-slate-400 mt-0.5">
+                  Vacancies below are dynamically ranked and scored against your verified skills and qualifications.
+                </p>
+              </div>
+            </div>
+
+            {/* Resume Switcher if multiple exist */}
+            <div className="flex items-center gap-2 shrink-0 w-full md:w-auto justify-end">
+              {resumes.length > 1 && (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs text-gray-500 dark:text-slate-400 hidden sm:inline">Switch CV:</span>
+                  <select
+                    value={activeResumeId || ''}
+                    onChange={(e) => setActiveResume(e.target.value)}
+                    className="text-xs font-semibold rounded-xl border border-blue-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-800 dark:text-slate-200 px-3 py-1.5 outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    {resumes.map((r) => (
+                      <option key={r.id} value={r.id}>
+                        {r.originalFilename}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate('/analyze')}
+                className="text-xs gap-1.5 dark:border-slate-700 dark:hover:bg-slate-800"
+              >
+                <Sparkles size={13} className="text-blue-500" />
+                Upload Another CV
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="bg-gradient-to-r from-amber-500/10 via-blue-500/10 to-transparent dark:from-amber-950/30 dark:via-blue-950/30 p-5 rounded-2xl border border-amber-200 dark:border-amber-900/50 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center font-bold shrink-0">
+                <AlertCircle size={20} />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-gray-900 dark:text-white">
+                  No CV Selected for AI Matching
+                </h3>
+                <p className="text-xs text-gray-600 dark:text-slate-400 mt-0.5">
+                  Upload your CV to calculate exact compatibility percentages, verified skills, and skill gaps for every vacancy. You can also browse all live vacancies below.
+                </p>
+              </div>
+            </div>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => navigate('/analyze')}
+              className="gap-2 shrink-0 bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              <FileText size={14} />
+              Upload CV to Unlock Matching
+            </Button>
+          </div>
+        )}
+
+        {/* General Job Source Directory Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           <a
-            href="https://www.topjobs.lk/applicant/vacancybyfunctionalarea.jsp?ac=defalut"
+            href="https://www.topjobs.lk"
             target="_blank"
             rel="noopener noreferrer"
-            className="bg-white hover:bg-blue-50/50 p-4 rounded-xl border border-gray-200 hover:border-blue-300 shadow-sm transition-all group flex items-center justify-between"
+            className="bg-white dark:bg-slate-900 hover:bg-blue-50/50 dark:hover:bg-slate-800/80 p-4 rounded-xl border border-gray-200 dark:border-slate-800 hover:border-blue-300 dark:hover:border-blue-700 shadow-xs transition-all group flex items-center justify-between"
           >
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-sm shrink-0">
+              <div className="w-10 h-10 rounded-xl bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 flex items-center justify-center font-bold text-sm shrink-0">
                 TJ
               </div>
               <div>
-                <div className="text-xs font-bold text-gray-900 group-hover:text-blue-600 transition-colors flex items-center gap-1">
-                  TopJobs.lk <ExternalLink size={12} className="text-gray-400 group-hover:text-blue-600" />
+                <div className="text-xs font-bold text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors flex items-center gap-1">
+                  TopJobs Sri Lanka <ExternalLink size={12} className="text-gray-400 group-hover:text-blue-600" />
                 </div>
-                <p className="text-[11px] text-gray-500">Sri Lanka's #1 Job Portal</p>
+                <p className="text-[11px] text-gray-500 dark:text-slate-400">All-Industry Local Directory</p>
               </div>
             </div>
-            <span className="text-[10px] font-semibold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-full border border-blue-200">
-              Open Site ↗
-            </span>
-          </a>
-
-          <a
-            href="https://www.itjobs.lk"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="bg-white hover:bg-indigo-50/50 p-4 rounded-xl border border-gray-200 hover:border-indigo-300 shadow-sm transition-all group flex items-center justify-between"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-sm shrink-0">
-                ITJ
-              </div>
-              <div>
-                <div className="text-xs font-bold text-gray-900 group-hover:text-indigo-600 transition-colors flex items-center gap-1">
-                  ITJobs.lk <ExternalLink size={12} className="text-gray-400 group-hover:text-indigo-600" />
-                </div>
-                <p className="text-[11px] text-gray-500">Sri Lanka Tech Directory</p>
-              </div>
-            </div>
-            <span className="text-[10px] font-semibold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-full border border-indigo-200">
-              Open Site ↗
+            <span className="text-[10px] font-semibold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 px-2.5 py-1 rounded-full border border-blue-200 dark:border-blue-800">
+              Verified ↗
             </span>
           </a>
 
@@ -244,189 +581,350 @@ export default function JobsPage() {
             href="https://expressjobs.lk"
             target="_blank"
             rel="noopener noreferrer"
-            className="bg-white hover:bg-emerald-50/50 p-4 rounded-xl border border-gray-200 hover:border-emerald-300 shadow-sm transition-all group flex items-center justify-between"
+            className="bg-white dark:bg-slate-900 hover:bg-emerald-50/50 dark:hover:bg-slate-800/80 p-4 rounded-xl border border-gray-200 dark:border-slate-800 hover:border-emerald-300 dark:hover:border-emerald-700 shadow-xs transition-all group flex items-center justify-between"
           >
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-sm shrink-0">
-                EX
+              <div className="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 flex items-center justify-center font-bold text-sm shrink-0">
+                XJ
               </div>
               <div>
-                <div className="text-xs font-bold text-gray-900 group-hover:text-emerald-600 transition-colors flex items-center gap-1">
-                  ExpressJobs.lk <ExternalLink size={12} className="text-gray-400 group-hover:text-emerald-600" />
+                <div className="text-xs font-bold text-gray-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors flex items-center gap-1">
+                  XpressJobs <ExternalLink size={12} className="text-gray-400 group-hover:text-emerald-600" />
                 </div>
-                <p className="text-[11px] text-gray-500">Corporate &amp; Tech Jobs</p>
+                <p className="text-[11px] text-gray-500 dark:text-slate-400">Corporate &amp; Commercial</p>
               </div>
             </div>
-            <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
-              Open Site ↗
+            <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2.5 py-1 rounded-full border border-emerald-200 dark:border-emerald-800">
+              Verified ↗
             </span>
           </a>
 
           <a
-            href="https://www.linkedin.com/jobs/search/?keywords=software%20engineer&location=Sri%20Lanka"
+            href="https://www.linkedin.com/jobs/search/?location=Sri%20Lanka"
             target="_blank"
             rel="noopener noreferrer"
-            className="bg-white hover:bg-sky-50/50 p-4 rounded-xl border border-gray-200 hover:border-sky-300 shadow-sm transition-all group flex items-center justify-between"
+            className="bg-white dark:bg-slate-900 hover:bg-sky-50/50 dark:hover:bg-slate-800/80 p-4 rounded-xl border border-gray-200 dark:border-slate-800 hover:border-sky-300 dark:hover:border-sky-700 shadow-xs transition-all group flex items-center justify-between"
           >
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-sky-100 text-sky-700 flex items-center justify-center font-bold text-sm shrink-0">
+              <div className="w-10 h-10 rounded-xl bg-sky-100 dark:bg-sky-950 text-sky-700 dark:text-sky-300 flex items-center justify-center font-bold text-sm shrink-0">
                 in
               </div>
               <div>
-                <div className="text-xs font-bold text-gray-900 group-hover:text-sky-600 transition-colors flex items-center gap-1">
-                  LinkedIn LK <ExternalLink size={12} className="text-gray-400 group-hover:text-sky-600" />
+                <div className="text-xs font-bold text-gray-900 dark:text-white group-hover:text-sky-600 dark:group-hover:text-sky-400 transition-colors flex items-center gap-1">
+                  LinkedIn Sri Lanka <ExternalLink size={12} className="text-gray-400 group-hover:text-sky-600" />
                 </div>
-                <p className="text-[11px] text-gray-500">Sri Lanka IT Positions</p>
+                <p className="text-[11px] text-gray-500 dark:text-slate-400">Professional &amp; Executive</p>
               </div>
             </div>
-            <span className="text-[10px] font-semibold text-sky-600 bg-sky-50 px-2.5 py-1 rounded-full border border-sky-200">
-              Open Site ↗
+            <span className="text-[10px] font-semibold text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-sky-950/60 px-2.5 py-1 rounded-full border border-sky-200 dark:border-sky-800">
+              Verified ↗
+            </span>
+          </a>
+
+          <a
+            href="https://careers.keells.com/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="bg-white dark:bg-slate-900 hover:bg-purple-50/50 dark:hover:bg-slate-800/80 p-4 rounded-xl border border-gray-200 dark:border-slate-800 hover:border-purple-300 dark:hover:border-purple-700 shadow-xs transition-all group flex items-center justify-between"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 flex items-center justify-center font-bold text-sm shrink-0">
+                <Building2 size={18} />
+              </div>
+              <div>
+                <div className="text-xs font-bold text-gray-900 dark:text-white group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors flex items-center gap-1">
+                  Employer Portals <ExternalLink size={12} className="text-gray-400 group-hover:text-purple-600" />
+                </div>
+                <p className="text-[11px] text-gray-500 dark:text-slate-400">MAS, Keells, ComBank, Hayleys</p>
+              </div>
+            </div>
+            <span className="text-[10px] font-semibold text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/60 px-2.5 py-1 rounded-full border border-purple-200 dark:border-purple-800">
+              Official ↗
             </span>
           </a>
         </div>
 
-        {/* Search & Filter Toolbar */}
-        <Card className="p-4 shadow-sm border-gray-200">
+        {/* Universal Search & Multi-Industry Filter Controls */}
+        <Card className="p-5 shadow-xs border-gray-200 dark:border-slate-800 dark:bg-slate-900 space-y-4">
+          {/* Search Row */}
           <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
             <div className="relative flex-1">
-              <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+              <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 dark:text-slate-500" />
               <input
                 type="text"
-                placeholder="Search job title, company name, or skills (e.g. React, Node, AWS)..."
+                placeholder="Search by job title, company name, skills, or industry keywords..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-300 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-300 dark:border-slate-700 dark:bg-slate-800 dark:text-white text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
               />
             </div>
 
-            <div className="flex items-center gap-2 overflow-x-auto">
+            <div className="flex items-center gap-2">
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as any)}
+                className="rounded-xl border border-gray-300 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 px-3 py-2 text-xs font-semibold outline-none focus:border-blue-500"
+              >
+                <option value="match">Sort: Best CV Match</option>
+                <option value="recent">Sort: Most Recently Posted</option>
+                <option value="company">Sort: Company (A-Z)</option>
+                <option value="title">Sort: Job Title (A-Z)</option>
+              </select>
+
+              {isFiltered && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleResetFilters}
+                  className="gap-1.5 text-xs text-gray-600 dark:text-slate-400 dark:border-slate-700 hover:text-red-600"
+                >
+                  <RotateCcw size={13} />
+                  Reset Filters
+                </Button>
+              )}
+            </div>
+          </div>
+
+          {/* Filter Pills / Dropdowns */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 pt-2 border-t border-gray-100 dark:border-slate-800 text-xs">
+            {/* 1. Industry / Category */}
+            <div>
+              <label className="text-[11px] font-bold text-gray-500 dark:text-slate-400 block mb-1">
+                Industry / Field
+              </label>
+              <select
+                value={categoryFilter}
+                onChange={(e) => setCategoryFilter(e.target.value)}
+                className="w-full rounded-lg border border-gray-300 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 px-2.5 py-1.5 text-xs outline-none focus:border-blue-500"
+              >
+                {INDUSTRY_CATEGORIES.map((cat) => (
+                  <option key={cat} value={cat}>
+                    {cat}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* 2. Location */}
+            <div>
+              <label className="text-[11px] font-bold text-gray-500 dark:text-slate-400 block mb-1">
+                Location
+              </label>
+              <select
+                value={locationFilter}
+                onChange={(e) => setLocationFilter(e.target.value)}
+                className="w-full rounded-lg border border-gray-300 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 px-2.5 py-1.5 text-xs outline-none focus:border-blue-500"
+              >
+                {LOCATIONS.map((loc) => (
+                  <option key={loc} value={loc}>
+                    {loc}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* 3. Workplace Type */}
+            <div>
+              <label className="text-[11px] font-bold text-gray-500 dark:text-slate-400 block mb-1">
+                Workplace Mode
+              </label>
+              <select
+                value={workplaceFilter}
+                onChange={(e) => setWorkplaceFilter(e.target.value)}
+                className="w-full rounded-lg border border-gray-300 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 px-2.5 py-1.5 text-xs outline-none focus:border-blue-500"
+              >
+                <option value="all">All Modes</option>
+                <option value="onsite">Onsite</option>
+                <option value="hybrid">Hybrid</option>
+                <option value="remote">Remote</option>
+              </select>
+            </div>
+
+            {/* 4. Experience Level */}
+            <div>
+              <label className="text-[11px] font-bold text-gray-500 dark:text-slate-400 block mb-1">
+                Experience Level
+              </label>
+              <select
+                value={experienceFilter}
+                onChange={(e) => setExperienceFilter(e.target.value)}
+                className="w-full rounded-lg border border-gray-300 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 px-2.5 py-1.5 text-xs outline-none focus:border-blue-500"
+              >
+                <option value="all">All Levels</option>
+                <option value="intern">Intern / Trainee</option>
+                <option value="entry">Entry-Level (0-2 yrs)</option>
+                <option value="mid">Mid-Senior (2-5 yrs)</option>
+                <option value="senior">Senior / Lead (5+ yrs)</option>
+              </select>
+            </div>
+
+            {/* 5. Match Score */}
+            <div>
+              <label className="text-[11px] font-bold text-gray-500 dark:text-slate-400 block mb-1">
+                CV Compatibility
+              </label>
               <select
                 value={minMatchFilter}
                 onChange={(e) => setMinMatchFilter(Number(e.target.value))}
-                className="rounded-xl border border-gray-300 px-3 py-2 text-xs font-medium text-gray-700 bg-white outline-none focus:border-blue-500"
+                className="w-full rounded-lg border border-gray-300 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 px-2.5 py-1.5 text-xs outline-none focus:border-blue-500"
               >
-                <option value={0}>All Match Scores</option>
-                <option value={90}>90%+ Match (Top Tier)</option>
-                <option value={80}>80%+ Match (Strong)</option>
-                <option value={70}>70%+ Match (Good)</option>
+                <option value={0}>All Scores</option>
+                <option value={85}>85%+ Top Tier Fit</option>
+                <option value={75}>75%+ Strong Fit</option>
+                <option value={60}>60%+ Moderate Fit</option>
               </select>
+            </div>
 
+            {/* 6. Source Portal */}
+            <div>
+              <label className="text-[11px] font-bold text-gray-500 dark:text-slate-400 block mb-1">
+                Source Portal
+              </label>
               <select
                 value={portalFilter}
                 onChange={(e) => setPortalFilter(e.target.value)}
-                className="rounded-xl border border-blue-300 bg-blue-50/50 px-3 py-2 text-xs font-semibold text-blue-900 outline-none focus:border-blue-500"
+                className="w-full rounded-lg border border-gray-300 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 px-2.5 py-1.5 text-xs outline-none focus:border-blue-500"
               >
-                <option value="all">🇱🇰 All Portals (TopJobs, ITJobs, ExpressJobs, LinkedIn)</option>
-                <option value="topjobs">🇱🇰 TopJobs.lk Only</option>
-                <option value="itjobs">🇱🇰 ITJobs.lk Only</option>
-                <option value="expressjobs">🇱🇰 ExpressJobs.lk Only</option>
-                <option value="linkedin">💼 LinkedIn Sri Lanka Only</option>
-              </select>
-
-              <select
-                value={filterType}
-                onChange={(e) => setFilterType(e.target.value)}
-                className="rounded-xl border border-gray-300 px-3 py-2 text-xs font-medium text-gray-700 bg-white outline-none focus:border-blue-500"
-              >
-                <option value="all">All Workplace Types</option>
-                <option value="remote">Remote Only</option>
-                <option value="full-time">Full-time Only</option>
+                <option value="all">All Verified Sources</option>
+                <option value="topjobs">TopJobs.lk</option>
+                <option value="expressjobs">XpressJobs.lk</option>
+                <option value="linkedin">LinkedIn Sri Lanka</option>
               </select>
             </div>
           </div>
         </Card>
 
+        {/* Results Counter Bar */}
+        <div className="flex items-center justify-between text-xs text-gray-500 dark:text-slate-400 px-1">
+          <span>
+            Showing <strong className="text-gray-900 dark:text-white">{filteredJobs.length}</strong> verified opportunities across industries
+          </span>
+          <span className="flex items-center gap-1.5">
+            <ShieldCheck size={14} className="text-green-600 dark:text-green-400" />
+            100% Genuine Employers &amp; Verified Vacancies
+          </span>
+        </div>
+
         {/* Job Cards List */}
         <div className="space-y-4">
           {filteredJobs.length === 0 ? (
             <EmptyState
-              title="No matching job listings found"
-              description="Try adjusting your keyword search or match threshold filters."
+              title="No matching verified vacancies found"
+              description="Try broadening your industry, location, or match score filters to explore more opportunities."
+              action={
+                isFiltered ? (
+                  <Button variant="outline" size="sm" onClick={handleResetFilters} className="gap-2">
+                    <RotateCcw size={14} /> Reset Filters
+                  </Button>
+                ) : undefined
+              }
             />
           ) : (
             filteredJobs.map((job) => {
               const isApplied = appliedJobs[job.id];
+              const indBadge = getIndustryBadge(job.category);
+              const hasUrl = !!job.applicationUrl && job.applicationUrl.startsWith('http');
 
               return (
                 <div
                   key={job.id}
                   onClick={() => setSelectedJob(job)}
-                  className="bg-white rounded-2xl border border-gray-200 hover:border-blue-300 hover:shadow-md transition-all duration-200 p-6 cursor-pointer group"
+                  className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 hover:border-blue-300 dark:hover:border-blue-700 hover:shadow-md transition-all duration-200 p-6 cursor-pointer group"
                 >
                   <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
                     {/* Job Info */}
-                    <div className="space-y-2 flex-1">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center font-bold text-base shadow-sm shrink-0">
+                    <div className="space-y-2.5 flex-1 min-w-0">
+                      <div className="flex items-start sm:items-center gap-3">
+                        <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white flex items-center justify-center font-bold text-base shadow-sm shrink-0">
                           {job.company.charAt(0)}
                         </div>
-                        <div>
-                          <h3 className="font-bold text-gray-900 group-hover:text-blue-600 transition-colors text-lg flex items-center gap-2">
-                            {job.title}
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-700 uppercase tracking-wide">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h3 className="font-bold text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors text-lg truncate">
+                              {job.title}
+                            </h3>
+                            <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${indBadge.bg}`}>
+                              {indBadge.label}
+                            </span>
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-100 text-green-800 dark:bg-green-950/60 dark:text-green-300">
                               ● Live Vacancy
                             </span>
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-xs text-gray-500 dark:text-slate-400 mt-1">
+                            <span className="font-semibold text-gray-800 dark:text-slate-200">{job.company}</span>
+                            <span>•</span>
+                            <span className="flex items-center gap-1">
+                              <MapPin size={13} className="text-gray-400" /> {job.location}
+                            </span>
+                            <span>•</span>
+                            <span className="flex items-center gap-1">
+                              <Clock size={13} className="text-gray-400" /> Posted {job.postedAt}
+                            </span>
                             {job.providerName && (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-gray-100 text-gray-700 border border-gray-200">
-                                {job.providerName.includes('topjobs') ? '🇱🇰 TopJobs.lk' :
-                                 job.providerName.includes('itjobs') ? '🇱🇰 ITJobs.lk' :
-                                 job.providerName.includes('expressjobs') ? '🇱🇰 ExpressJobs.lk' :
-                                 job.providerName.includes('linkedin') ? '💼 LinkedIn' :
-                                 '🌐 ' + job.providerName}
-                              </span>
+                              <>
+                                <span>•</span>
+                                <span className="font-medium text-blue-600 dark:text-blue-400">
+                                  {job.providerName.includes('topjobs') ? 'TopJobs.lk' :
+                                   job.providerName.includes('express') ? 'XpressJobs.lk' :
+                                   job.providerName.includes('linkedin') ? 'LinkedIn Sri Lanka' :
+                                   'Employer Career Portal'}
+                                </span>
+                              </>
                             )}
-                          </h3>
-                          <div className="flex flex-wrap items-center gap-3 text-xs text-gray-500 mt-0.5">
-                            <span className="font-semibold text-gray-800">{job.company}</span>
-                            <span>•</span>
-                            <span className="flex items-center gap-1">
-                              <MapPin size={13} /> {job.location}
-                            </span>
-                            <span>•</span>
-                            <span className="flex items-center gap-1">
-                              <Clock size={13} /> {job.postedAt}
-                            </span>
                           </div>
                         </div>
                       </div>
 
-                      <div className="flex flex-wrap items-center gap-2 pt-1">
-                        <span className="px-2.5 py-1 rounded-lg bg-gray-100 text-gray-700 text-xs font-medium">
+                      {/* Work Mode & Salary Pills */}
+                      <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                        <span className="px-2.5 py-1 rounded-lg bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-300 text-xs font-medium">
                           {job.employmentType}
                         </span>
-                        <span className="px-2.5 py-1 rounded-lg bg-gray-100 text-gray-700 text-xs font-medium">
+                        {job.workplaceType && (
+                          <span className="px-2.5 py-1 rounded-lg bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-300 text-xs font-medium">
+                            {job.workplaceType}
+                          </span>
+                        )}
+                        <span className="px-2.5 py-1 rounded-lg bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-300 text-xs font-medium">
                           {job.experienceLevel}
                         </span>
-                        {job.salaryMin && (
-                          <span className="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-semibold flex items-center gap-1">
+                        {job.salaryInformation && (
+                          <span className="px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 text-xs font-semibold flex items-center gap-1">
                             <DollarSign size={13} />
-                            ${(job.salaryMin / 1000).toFixed(0)}k – ${(job.salaryMax! / 1000).toFixed(0)}k {job.currency}
+                            {job.salaryInformation}
                           </span>
                         )}
                       </div>
 
-                      {/* Matched vs Missing Skills */}
-                      <div className="pt-2 flex flex-wrap items-center gap-1.5">
-                        <span className="text-xs font-medium text-gray-500 mr-1">Matched:</span>
-                        {job.matchedSkills.slice(0, 4).map((skill) => (
-                          <span
-                            key={skill}
-                            className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md bg-green-50 text-green-700 text-xs font-semibold border border-green-200"
-                          >
-                            <CheckCircle2 size={11} /> {skill}
-                          </span>
-                        ))}
-                        {job.matchedSkills.length > 4 && (
-                          <span className="text-xs text-gray-400">+{job.matchedSkills.length - 4} more</span>
+                      {/* Matched vs Missing Skills Badges */}
+                      <div className="pt-1 flex flex-wrap items-center gap-1.5">
+                        {job.matchedSkills.length > 0 && (
+                          <>
+                            <span className="text-xs font-medium text-gray-500 dark:text-slate-400 mr-1">
+                              {activeResumeId ? 'Matched:' : 'Skills:'}
+                            </span>
+                            {job.matchedSkills.slice(0, 4).map((skill) => (
+                              <span
+                                key={skill}
+                                className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md bg-green-50 dark:bg-green-950/40 text-green-700 dark:text-green-300 text-xs font-semibold border border-green-200 dark:border-green-800"
+                              >
+                                <CheckCircle2 size={11} /> {skill}
+                              </span>
+                            ))}
+                            {job.matchedSkills.length > 4 && (
+                              <span className="text-xs text-gray-400">+{job.matchedSkills.length - 4} more</span>
+                            )}
+                          </>
                         )}
 
-                        {job.missingSkills.length > 0 && (
+                        {activeResumeId && job.missingSkills.length > 0 && (
                           <>
                             <span className="text-xs font-medium text-gray-400 ml-2 mr-1">Gap:</span>
                             {job.missingSkills.slice(0, 2).map((skill) => (
                               <span
                                 key={skill}
-                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-50 text-amber-700 text-xs font-medium border border-amber-200"
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 text-xs font-medium border border-amber-200 dark:border-amber-800"
                               >
                                 <AlertCircle size={10} /> {skill}
                               </span>
@@ -437,32 +935,42 @@ export default function JobsPage() {
                     </div>
 
                     {/* Right side: Match score & Actions */}
-                    <div className="flex items-center gap-4 shrink-0 pt-2 lg:pt-0 border-t lg:border-t-0 border-gray-100 w-full lg:w-auto justify-between lg:justify-end">
-                      {/* Match Score Badge */}
-                      <div className="text-center px-4 py-2 rounded-xl bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200/80">
-                        <span className="text-xs font-bold text-gray-500 uppercase tracking-wider block">Match</span>
-                        <span
-                          className={`text-2xl font-extrabold ${
-                            job.matchScore >= 90
-                              ? 'text-green-600'
-                              : job.matchScore >= 80
-                              ? 'text-blue-600'
-                              : 'text-amber-600'
-                          }`}
-                        >
-                          {job.matchScore}%
-                        </span>
-                      </div>
+                    <div className="flex items-center gap-3 shrink-0 pt-2 lg:pt-0 border-t lg:border-t-0 border-gray-100 dark:border-slate-800 w-full lg:w-auto justify-between lg:justify-end">
+                      {/* Match Score Gauge */}
+                      {activeResumeId ? (
+                        <div className="text-center px-4 py-2 rounded-xl bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-slate-800 dark:to-slate-800/80 border border-blue-200/80 dark:border-slate-700 min-w-[80px]">
+                          <span className="text-[10px] font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider block">
+                            {job.isEstimate ? 'Estimate' : 'CV Match'}
+                          </span>
+                          <span
+                            className={`text-2xl font-extrabold ${
+                              job.matchScore >= 80
+                                ? 'text-green-600 dark:text-green-400'
+                                : job.matchScore >= 65
+                                ? 'text-blue-600 dark:text-blue-400'
+                                : 'text-amber-600 dark:text-amber-400'
+                            }`}
+                          >
+                            {job.matchScore}%
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="text-center px-3 py-2 rounded-xl bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-gray-500 dark:text-slate-400 text-xs">
+                          <span className="block font-semibold">Unscored</span>
+                          <span className="text-[10px]">Upload CV</span>
+                        </div>
+                      )}
 
+                      {/* Action Buttons */}
                       <div className="flex items-center gap-2">
                         <button
                           type="button"
                           onClick={(e) => handleToggleSave(job, e)}
-                          title={job.isSaved ? 'Remove from saved' : 'Save job'}
+                          title={job.isSaved ? 'Remove from saved jobs' : 'Save job to bookmarks'}
                           className={`p-2.5 rounded-xl border transition-colors ${
                             job.isSaved
-                              ? 'bg-blue-50 border-blue-300 text-blue-600'
-                              : 'border-gray-200 text-gray-400 hover:text-gray-700 hover:bg-gray-50'
+                              ? 'bg-blue-50 dark:bg-blue-950/60 border-blue-300 dark:border-blue-700 text-blue-600 dark:text-blue-400'
+                              : 'border-gray-200 dark:border-slate-700 text-gray-400 hover:text-gray-700 dark:hover:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-800'
                           }`}
                         >
                           {job.isSaved ? <BookmarkCheck size={18} /> : <Bookmark size={18} />}
@@ -472,32 +980,47 @@ export default function JobsPage() {
                           variant="outline"
                           size="sm"
                           onClick={(e) => handleOpenMatcher(job, e)}
-                          className="gap-1.5 text-xs hidden sm:inline-flex"
+                          className="gap-1.5 text-xs hidden sm:inline-flex dark:border-slate-700 dark:hover:bg-slate-800"
                         >
-                          <Sparkles size={13} className="text-blue-600" />
+                          <Sparkles size={13} className="text-blue-600 dark:text-blue-400" />
                           Compare CV
                         </Button>
 
-                        <Button
-                          variant={isApplied ? 'outline' : 'primary'}
-                          size="sm"
-                          onClick={(e) => handleApplyAndTrack(job, e)}
-                          className={`gap-1.5 text-xs ${
-                            isApplied ? 'text-green-700 border-green-300 bg-green-50' : 'bg-blue-600 hover:bg-blue-700 text-white'
-                          }`}
-                        >
-                          {isApplied ? (
-                            <>
-                              <CheckCircle2 size={13} />
-                              Tracked (Applied)
-                            </>
-                          ) : (
-                            <>
-                              <ExternalLink size={13} />
-                              Apply on Site &amp; Track
-                            </>
-                          )}
-                        </Button>
+                        {/* Apply on Employer Site & Track Button */}
+                        {hasUrl ? (
+                          <Button
+                            variant={isApplied ? 'outline' : 'primary'}
+                            size="sm"
+                            onClick={(e) => handleApplyAndTrack(job, e)}
+                            className={`gap-1.5 text-xs ${
+                              isApplied
+                                ? 'text-green-700 dark:text-green-300 border-green-300 dark:border-green-800 bg-green-50 dark:bg-green-950/50'
+                                : 'bg-blue-600 hover:bg-blue-700 text-white'
+                            }`}
+                          >
+                            {isApplied ? (
+                              <>
+                                <CheckCircle2 size={13} />
+                                Tracked (Applied)
+                              </>
+                            ) : (
+                              <>
+                                <ExternalLink size={13} />
+                                Apply on Site &amp; Track
+                              </>
+                            )}
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled
+                            className="gap-1.5 text-xs text-gray-400 dark:text-slate-500 border-gray-200 dark:border-slate-800 cursor-not-allowed"
+                            title="Application link not provided by source"
+                          >
+                            Application link unavailable
+                          </Button>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -507,54 +1030,85 @@ export default function JobsPage() {
           )}
         </div>
 
-        {/* Job Detail Modal */}
+        {/* Detailed Job Modal */}
         {selectedJob && (
-          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
-              <div className="flex items-start justify-between border-b border-gray-100 pb-4">
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto border border-gray-200 dark:border-slate-800 text-gray-900 dark:text-slate-100">
+              {/* Header */}
+              <div className="flex items-start justify-between border-b border-gray-100 dark:border-slate-800 pb-4">
                 <div className="space-y-1">
-                  <h3 className="text-xl font-bold text-gray-900">{selectedJob.title}</h3>
-                  <p className="text-sm font-semibold text-blue-600">{selectedJob.company}</p>
-                  <p className="text-xs text-gray-500">{selectedJob.location} • {selectedJob.employmentType}</p>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-xl font-bold">{selectedJob.title}</h3>
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border ${getIndustryBadge(selectedJob.category).bg}`}>
+                      {getIndustryBadge(selectedJob.category).label}
+                    </span>
+                  </div>
+                  <p className="text-sm font-semibold text-blue-600 dark:text-blue-400">{selectedJob.company}</p>
+                  <p className="text-xs text-gray-500 dark:text-slate-400">
+                    {selectedJob.location} • {selectedJob.employmentType} • {selectedJob.workplaceType || 'Onsite'}
+                  </p>
                 </div>
                 <button
                   onClick={() => setSelectedJob(null)}
-                  className="text-gray-400 hover:text-gray-600 text-lg font-bold"
+                  className="text-gray-400 hover:text-gray-600 dark:hover:text-slate-200 text-lg font-bold p-1"
                 >
                   ✕
                 </button>
               </div>
 
-              {/* Match overview */}
-              <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-200 flex items-center justify-between">
-                <div>
-                  <span className="text-xs font-bold text-blue-800 uppercase tracking-wide">
-                    Compatibility Verdict
-                  </span>
-                  <p className="text-sm text-gray-800 mt-0.5">
-                    Your CV is a <strong className="text-blue-900">{selectedJob.matchScore}% strong match</strong> for this position.
-                  </p>
+              {/* Match Overview Verdict */}
+              {activeResumeId ? (
+                <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/40 dark:to-indigo-950/40 rounded-xl border border-blue-200 dark:border-blue-800 flex items-center justify-between">
+                  <div className="space-y-1">
+                    <span className="text-xs font-bold text-blue-800 dark:text-blue-300 uppercase tracking-wide">
+                      Compatibility Verdict
+                    </span>
+                    <p className="text-sm text-gray-800 dark:text-slate-200">
+                      Your CV is a <strong className="text-blue-900 dark:text-blue-300">{selectedJob.matchScore}% match</strong> for this position.
+                    </p>
+                    {selectedJob.explanations?.[0] && (
+                      <p className="text-xs text-gray-600 dark:text-slate-400 pt-0.5">
+                        {selectedJob.explanations[0]}
+                      </p>
+                    )}
+                  </div>
+                  <div className="text-right shrink-0">
+                    <span className="text-3xl font-extrabold text-blue-600 dark:text-blue-400">
+                      {selectedJob.matchScore}%
+                    </span>
+                  </div>
                 </div>
-                <div className="text-right">
-                  <span className="text-3xl font-extrabold text-blue-600">{selectedJob.matchScore}%</span>
+              ) : (
+                <div className="p-4 bg-gray-50 dark:bg-slate-800/80 rounded-xl border border-gray-200 dark:border-slate-700 flex items-center justify-between">
+                  <div>
+                    <span className="text-xs font-bold text-gray-700 dark:text-slate-300 uppercase tracking-wide">
+                      Standard Vacancy Overview
+                    </span>
+                    <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">
+                      Upload your CV to see personalized score breakdowns and verified skills matching.
+                    </p>
+                  </div>
+                  <Button variant="outline" size="sm" onClick={() => navigate('/analyze')} className="text-xs">
+                    Upload CV
+                  </Button>
                 </div>
-              </div>
+              )}
 
-              {/* Skills breakdown */}
+              {/* Skills Breakdown */}
               <div className="space-y-3">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-gray-500">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-slate-400">
                   Skills Matching Breakdown
                 </h4>
                 <div className="space-y-2">
                   <div>
-                    <span className="text-xs text-gray-600 font-medium block mb-1.5">
-                      Verified On Your CV:
+                    <span className="text-xs text-gray-600 dark:text-slate-300 font-medium block mb-1.5">
+                      Required Skills &amp; Competencies:
                     </span>
                     <div className="flex flex-wrap gap-1.5">
                       {selectedJob.matchedSkills.map((s) => (
                         <span
                           key={s}
-                          className="px-2.5 py-1 rounded-md bg-green-50 text-green-700 text-xs font-semibold border border-green-200 flex items-center gap-1"
+                          className="px-2.5 py-1 rounded-md bg-green-50 dark:bg-green-950/40 text-green-700 dark:text-green-300 text-xs font-semibold border border-green-200 dark:border-green-800 flex items-center gap-1"
                         >
                           <CheckCircle2 size={12} /> {s}
                         </span>
@@ -564,14 +1118,14 @@ export default function JobsPage() {
 
                   {selectedJob.missingSkills.length > 0 && (
                     <div className="pt-2">
-                      <span className="text-xs text-amber-700 font-medium block mb-1.5">
-                        Identified Skill Gaps (Consider adding if applicable):
+                      <span className="text-xs text-amber-700 dark:text-amber-400 font-medium block mb-1.5">
+                        Identified Skill Gaps (Consider highlighting if experienced):
                       </span>
                       <div className="flex flex-wrap gap-1.5">
                         {selectedJob.missingSkills.map((s) => (
                           <span
                             key={s}
-                            className="px-2.5 py-1 rounded-md bg-amber-50 text-amber-800 text-xs font-medium border border-amber-200 flex items-center gap-1"
+                            className="px-2.5 py-1 rounded-md bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 text-xs font-medium border border-amber-200 dark:border-amber-800 flex items-center gap-1"
                           >
                             <AlertCircle size={12} /> {s}
                           </span>
@@ -582,59 +1136,59 @@ export default function JobsPage() {
                 </div>
               </div>
 
-              {/* Job description */}
+              {/* Role Overview */}
               <div className="space-y-2">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-gray-500">
-                  Role Overview & Requirements
+                <h4 className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-slate-400">
+                  Role Overview &amp; Responsibilities
                 </h4>
-                <div className="p-4 bg-gray-50 rounded-xl text-xs text-gray-700 leading-relaxed space-y-2">
+                <div className="p-4 bg-gray-50 dark:bg-slate-800/60 rounded-xl text-xs text-gray-700 dark:text-slate-300 leading-relaxed space-y-2">
                   <p>{selectedJob.description}</p>
-                  <p>• Lead architectural decisions and collaborate with cross-functional partners.</p>
-                  <p>• Write scalable, well-tested code with rigorous documentation standards.</p>
-                  <p>• Mentor junior engineers and participate in company-wide technology syncs.</p>
+                  {selectedJob.salaryInformation && (
+                    <p className="pt-2 font-semibold text-emerald-700 dark:text-emerald-400">
+                      Compensation Benchmark: {selectedJob.salaryInformation}
+                    </p>
+                  )}
                 </div>
               </div>
 
-              {/* Modal footer actions */}
-              <div className="flex items-center justify-between pt-3 border-t border-gray-100">
+              {/* Modal Footer Actions */}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-3 border-t border-gray-100 dark:border-slate-800">
                 <Button
                   variant="outline"
                   onClick={() => handleToggleSave(selectedJob, { stopPropagation: () => {} } as any)}
-                  className="gap-2"
+                  className="gap-2 dark:border-slate-700"
                 >
                   {selectedJob.isSaved ? <BookmarkCheck size={15} /> : <Bookmark size={15} />}
                   {selectedJob.isSaved ? 'Saved in Bookmarks' : 'Save to Bookmarks'}
                 </Button>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 justify-end">
                   <Button
                     variant="outline"
                     onClick={(e) => handleOpenMatcher(selectedJob, e)}
-                    className="gap-1.5"
+                    className="gap-1.5 dark:border-slate-700"
                   >
-                    <Sparkles size={14} className="text-blue-600" />
+                    <Sparkles size={14} className="text-blue-600 dark:text-blue-400" />
                     Deep Matcher
                   </Button>
-                  <Button
-                    variant="primary"
-                    onClick={() => {
-                      handleApplyAndTrack(selectedJob);
-                      setSelectedJob(null);
-                    }}
-                    className="gap-2 bg-blue-600 text-white"
-                  >
-                    {(selectedJob as any).applicationUrl?.startsWith('http') ? (
-                      <>
-                        <ExternalLink size={14} />
-                        Apply on Employer Site & Track
-                      </>
-                    ) : (
-                      <>
-                        <Send size={14} />
-                        Apply & Track Application
-                      </>
-                    )}
-                  </Button>
+
+                  {selectedJob.applicationUrl && selectedJob.applicationUrl.startsWith('http') ? (
+                    <Button
+                      variant="primary"
+                      onClick={() => {
+                        handleApplyAndTrack(selectedJob);
+                        setSelectedJob(null);
+                      }}
+                      className="gap-2 bg-blue-600 hover:bg-blue-700 text-white"
+                    >
+                      <ExternalLink size={14} />
+                      Apply on Employer Site &amp; Track
+                    </Button>
+                  ) : (
+                    <Button variant="outline" disabled className="text-xs text-gray-400 cursor-not-allowed">
+                      Application link unavailable
+                    </Button>
+                  )}
                 </div>
               </div>
             </div>
