@@ -90,16 +90,35 @@ flowchart TD
   - `60–74`: **Fair** (Amber)
   - `0–59`: **Needs Improvement** (Red)
 
-### 3.4. Sri Lankan Tech Vacancy Aggregator & AI Matcher
-- **Exclusively Focused on Sri Lankan Opportunities**:
-  - 🇱🇰 **TopJobs.lk**: Vacancies from top tech employers (Sysco LABS, WSO2, Virtusa, IFS, Dialog Axiata).
-  - 🇱🇰 **ITJobs.lk**: Specialized developer directory (LSEG, 99x, Calcey Technologies, Arimac Digital).
-  - 🇱🇰 **ExpressJobs.lk**: Corporate & tech openings (Axiata Digital Labs, Mitra Innovation, Hayleys Group).
-  - 💼 **LinkedIn Sri Lanka**: Curated Colombo tech opportunities (Rootcode Labs, Zone24x7, Pearson Lanka).
-- **Quick-Launch Direct Portal Access**: Interactive 1-click launchpad cards on the `/jobs` page allowing candidates to open and search the job portals directly.
-- **AI Compatibility Match**: Dynamically computes candidate compatibility score (e.g. `94% Match`) comparing CV skills against live job specifications.
-- **Verified Skills vs Skill Gaps**: Highlights verified competencies on the candidate's CV and flags missing keywords to target.
-- **1-Click "Apply on Site & Track"**: Automatically opens the verified employer listing while adding the role to the candidate's application tracker.
+### 3.4. All-Industry Verified Job Vacancy Aggregator & Deterministic AI Matcher
+- **General-Purpose Coverage Across All Major Career Paths**:
+  - 🌾 **Agriculture and Agribusiness**: Hayleys Agriculture, CIC Holdings, Sunshine Holdings / Watawala.
+  - 💼 **Accounting, Finance, and Banking**: Commercial Bank of Ceylon, Hatton National Bank (HNB), KPMG Sri Lanka, Brandix FP&A.
+  - 📈 **Business Management & Operations**: John Keells Holdings (JKH), MAS Holdings, Hemas Holdings.
+  - 📣 **Marketing, Sales, and Customer Service**: Unilever Sri Lanka, Nestlé Lanka, Dialog Axiata.
+  - 👥 **Human Resources**: MAS Holdings, Brandix Apparel, Standard Chartered Bank.
+  - ⚙️ **Engineering & Manufacturing**: Tokyo Cement, Access Engineering, ACL Cables.
+  - 🏥 **Healthcare & Life Sciences**: Asiri Health Hospital Group, Nawaloka Hospitals, Hemas Hospitals.
+  - 📦 **Logistics & Supply Chain**: Hayleys Advantis, EFL Global (Expolanka), McLarens Group.
+  - 🏨 **Hospitality & Tourism**: Cinnamon Hotels & Resorts, Jetwing Hotels, Aitken Spence Hotels.
+  - 💻 **Software Engineering & IT**: Sysco LABS, WSO2, LSEG Technology.
+  - 🎓 **Education & Research**: SLIIT, NSBM Green University.
+  - 🏗️ **Construction & Civil Trades**: Sanken Construction, Maga Engineering.
+  - 🎨 **Design, Media & Communications**: Phoenix Ogilvy, Dentsu Communications.
+  - 🏛️ **Government & Public Sector Liaison**: Sri Lanka Export Development Board (EDB) Partner Initiatives.
+  - 🚀 **Internships & Graduate Trainee Programs**: Commercial Bank Management Trainees, MAS LEAP, JKH Fast Track.
+- **Genuine Source Portals & Employer Gateways**:
+  - 🇱🇰 **TopJobs Sri Lanka** (`https://www.topjobs.lk`): Verified nationwide multi-industry directory.
+  - 🇱🇰 **XpressJobs Sri Lanka** (`https://expressjobs.lk`): Corporate, commercial, and executive openings.
+  - 💼 **LinkedIn Sri Lanka**: Executive and cross-industry professional opportunities.
+  - 🏢 **Employer Career Portals**: Verified career portals of Sri Lanka's leading blue-chip employers.
+- **Deterministic 100% Weighted Compatibility Matching Engine**:
+  - Required Skills (30%), Preferred Skills (10%), Experience & Seniority (20%), Role Responsibilities (15%), Education & Certifications (15%), Location Compatibility (5%), Workplace & Mode Compatibility (5%).
+  - Dynamically computes candidate fit and natural language explanations with verified skill matches and gap analysis.
+- **Safe Application Navigation & Application Tracker**:
+  - 1-Click safe navigation directly to exact verified vacancy URLs or official employer careers gateways (`noopener,noreferrer`).
+  - Automatically records application in tracker, avoiding duplicates on repeated clicks.
+  - Incomplete CV transparency: marks estimate flag if CV has sparse sections.
 
 ### 3.5. System Administrator Console (`/admin`)
 - Accessible only when authenticated as `janithrajindra0705@gmail.com`.
