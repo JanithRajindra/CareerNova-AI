@@ -1,5 +1,5 @@
 import { config } from '../config';
-import { ParsedResume } from '../types';
+import { ParsedResume, JobListing } from '../types';
 
 export interface AISuggestion {
   section: string;
@@ -26,6 +26,123 @@ export class AIResumeService {
 
   constructor() {
     this.isAvailable = !!(config.ai.apiKey && config.ai.provider);
+  }
+
+  public refreshAvailability(): void {
+    this.isAvailable = !!(config.ai.apiKey && config.ai.provider);
+  }
+
+  public isAIAvailable(): boolean {
+    return this.isAvailable;
+  }
+
+  /**
+   * Deep Semantic Reranking with the Best AI Model (e.g. GPT-4o)
+   * Evaluates candidate actual experience depth against job openings
+   * and returns calibrated semantic match scores with personalized reasoning.
+   */
+  async evaluateJobRecommendations(
+    parsed: ParsedResume,
+    jobs: JobListing[]
+  ): Promise<Map<string, { semanticScore: number; rationale: string; keyStrengths: string[]; missingSkills: string[]; tailoringTip: string }>> {
+    const results = new Map<string, { semanticScore: number; rationale: string; keyStrengths: string[]; missingSkills: string[]; tailoringTip: string }>();
+
+    if (!this.isAvailable || jobs.length === 0) {
+      return results;
+    }
+
+    try {
+      const { OpenAI } = await import('openai').catch(() => ({ OpenAI: null }));
+      if (!OpenAI) return results;
+
+      const client = new OpenAI({
+        apiKey: config.ai.apiKey,
+        ...(config.ai.baseURL ? { baseURL: config.ai.baseURL } : {}),
+      });
+
+      const candidateProfile = {
+        name: parsed.fullName || 'Candidate',
+        skills: (parsed.skills || []).slice(0, 30),
+        experience: (parsed.experience || []).slice(0, 4).map((e) => ({
+          title: e.jobTitle,
+          company: e.company,
+          duration: `${e.startDate || ''} - ${e.endDate || ''}`,
+          summary: (e.bullets || []).slice(0, 3).join('; '),
+        })),
+        education: (parsed.education || []).map((e) => `${e.degree || ''} from ${e.institution || ''}`),
+        certifications: parsed.certifications || [],
+      };
+
+      const jobsData = jobs.map((j) => ({
+        id: j.id,
+        title: j.title,
+        company: j.company,
+        category: j.category,
+        experienceRequired: j.experienceRequirements,
+        educationRequired: j.educationRequirements,
+        requiredSkills: j.requiredSkills,
+        descriptionSnippet: (j.description || '').substring(0, 350),
+      }));
+
+      const prompt = `You are CareerMatch AI's Lead Talent Matching Intelligence, powered by ${config.ai.model}.
+Evaluate the candidate's CV profile against the job openings with maximum semantic precision.
+
+RULES:
+1. Accurately evaluate technical overlap, seniority alignment, domain expertise, and transferable skills.
+2. Score each job strictly from 0 to 100 based on genuine compatibility.
+   - 85-100%: Strong fit (meets core stack + experience level).
+   - 70-84%: Good fit (solid foundation, minor transferable gaps).
+   - 50-69%: Moderate fit (some transferable skills, significant differences).
+   - <50%: Low fit (unrelated domains).
+3. Provide a clear, natural personalized rationale explaining why this job matches or has gaps.
+4. Return ONLY a valid JSON object matching this schema:
+{
+  "matches": [
+    {
+      "jobId": "string",
+      "semanticScore": number,
+      "rationale": "1-2 sentences explaining why this vacancy fits the candidate",
+      "keyStrengths": ["strength 1", "strength 2"],
+      "missingSkills": ["missing skill 1"],
+      "tailoringTip": "1 specific tip to highlight on their application"
+    }
+  ]
+}
+
+Candidate Profile:
+${JSON.stringify(candidateProfile, null, 2)}
+
+Job Vacancies to Evaluate:
+${JSON.stringify(jobsData, null, 2)}`;
+
+      const response = await client.chat.completions.create({
+        model: config.ai.model || 'gpt-4o',
+        messages: [{ role: 'user', content: prompt }],
+        response_format: { type: 'json_object' },
+        max_tokens: 2500,
+        temperature: 0.1, // Low temperature for deterministic, high accuracy scoring
+      });
+
+      const content = response.choices[0].message.content || '{}';
+      const parsedData = JSON.parse(content);
+      if (Array.isArray(parsedData.matches)) {
+        for (const m of parsedData.matches) {
+          if (m.jobId) {
+            results.set(m.jobId, {
+              semanticScore: Math.min(Math.max(Math.round(m.semanticScore || 0), 0), 100),
+              rationale: m.rationale || '',
+              keyStrengths: Array.isArray(m.keyStrengths) ? m.keyStrengths : [],
+              missingSkills: Array.isArray(m.missingSkills) ? m.missingSkills : [],
+              tailoringTip: m.tailoringTip || '',
+            });
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('[AIResumeService] AI recommendation evaluation error:', (err as Error).message);
+    }
+
+    return results;
   }
 
   async improveSummary(
@@ -76,7 +193,10 @@ export class AIResumeService {
       const { OpenAI } = await import('openai').catch(() => ({ OpenAI: null }));
       if (!OpenAI) throw new Error('OpenAI not available');
 
-      const client = new OpenAI({ apiKey: config.ai.apiKey });
+      const client = new OpenAI({
+        apiKey: config.ai.apiKey,
+        ...(config.ai.baseURL ? { baseURL: config.ai.baseURL } : {}),
+      });
 
       let prompt = '';
       if (type === 'summary') {
@@ -136,7 +256,10 @@ ${text}`;
       const { OpenAI } = await import('openai').catch(() => ({ OpenAI: null }));
       if (!OpenAI) throw new Error('OpenAI not available');
 
-      const client = new OpenAI({ apiKey: config.ai.apiKey });
+      const client = new OpenAI({
+        apiKey: config.ai.apiKey,
+        ...(config.ai.baseURL ? { baseURL: config.ai.baseURL } : {}),
+      });
 
       const prompt = `You are an expert career consultant analyzing a resume against a job description.
 
@@ -190,7 +313,10 @@ ${jobDescription.substring(0, 2000)}`;
       const { OpenAI } = await import('openai').catch(() => ({ OpenAI: null }));
       if (!OpenAI) throw new Error('OpenAI not available');
 
-      const client = new OpenAI({ apiKey: config.ai.apiKey });
+      const client = new OpenAI({
+        apiKey: config.ai.apiKey,
+        ...(config.ai.baseURL ? { baseURL: config.ai.baseURL } : {}),
+      });
 
       const prompt = `You are an expert resume writer and ATS specialist.
 

@@ -128,11 +128,17 @@ export async function getJob(id: string) {
   return res.data;
 }
 
-export async function getRecommendations(resumeId: string, params?: number | Record<string, string | number>) {
+export async function getRecommendations(
+  resumeId: string,
+  params?: number | Record<string, string | number | boolean>,
+  forceRefresh = false
+) {
   const queryParams = typeof params === 'object' ? { resumeId, ...params } : { resumeId, ...(params !== undefined ? { minMatch: params } : {}) };
   const cacheKey = `recommendations_${JSON.stringify(queryParams)}`;
-  const cached = appCache.get(cacheKey);
-  if (cached) return cached;
+  if (!forceRefresh) {
+    const cached = appCache.get(cacheKey);
+    if (cached) return cached;
+  }
 
   const res = await api.get('/jobs/recommendations', { params: queryParams });
   appCache.set(cacheKey, res.data, 2 * 60 * 1000);
@@ -213,6 +219,12 @@ export async function getAIStatus() {
 
 export async function testAIConnection(data?: { apiKey?: string; model?: string; provider?: string }) {
   const res = await api.post('/ai/test', data || {});
+  return res.data;
+}
+
+export async function configureAI(data: { apiKey?: string; model?: string; provider?: string }) {
+  const res = await api.post('/ai/configure', data);
+  appCache.clear();
   return res.data;
 }
 

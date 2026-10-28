@@ -207,6 +207,126 @@ export const BENCHMARK_JOB_FIXTURES: JobListing[] = [
  * - Location Compatibility: 5%
  * - Workplace & Employment Type: 5%
  */
+const SKILL_SYNONYMS: Record<string, string[]> = {
+  // Web & Frontend
+  'react': ['react.js', 'reactjs', 'next.js', 'nextjs', 'react native', 'redux'],
+  'react.js': ['react', 'reactjs', 'next.js', 'nextjs'],
+  'next.js': ['nextjs', 'react', 'react.js'],
+  'vue': ['vue.js', 'vuejs', 'nuxt', 'nuxtjs'],
+  'angular': ['angular.js', 'angularjs', 'angular 2+'],
+  'typescript': ['ts', 'javascript', 'js'],
+  'javascript': ['js', 'typescript', 'es6'],
+  'html': ['html5', 'web'],
+  'css': ['css3', 'tailwind', 'tailwindcss', 'sass', 'scss', 'bootstrap'],
+  'tailwind': ['tailwindcss', 'css'],
+
+  // Backend & Languages
+  'node.js': ['nodejs', 'node', 'express', 'express.js', 'nest.js', 'nestjs'],
+  'nodejs': ['node.js', 'node', 'express', 'nest.js'],
+  'express': ['express.js', 'node.js', 'nodejs'],
+  'python': ['python3', 'django', 'fastapi', 'flask'],
+  'django': ['python', 'python3'],
+  'fastapi': ['python', 'python3'],
+  'java': ['spring', 'spring boot', 'j2ee'],
+  'spring boot': ['spring', 'java'],
+  'c#': ['.net', 'asp.net', 'dotnet', 'c sharp'],
+  '.net': ['c#', 'asp.net', 'dotnet'],
+  'php': ['laravel', 'symfony'],
+  'golang': ['go', 'go lang'],
+
+  // Databases
+  'sql': ['postgresql', 'postgres', 'mysql', 'mssql', 'sql server', 'sqlite', 'mariadb', 'relational'],
+  'postgresql': ['postgres', 'sql', 'rdbms'],
+  'postgres': ['postgresql', 'sql'],
+  'mysql': ['sql', 'mariadb'],
+  'mongodb': ['mongo', 'nosql', 'documentdb'],
+  'redis': ['in-memory', 'cache', 'caching'],
+
+  // Cloud & DevOps
+  'aws': ['amazon web services', 'ec2', 's3', 'lambda', 'cloud'],
+  'azure': ['microsoft azure', 'cloud'],
+  'gcp': ['google cloud', 'google cloud platform', 'cloud'],
+  'cloud': ['aws', 'azure', 'gcp', 'cloud computing'],
+  'docker': ['containers', 'containerization', 'kubernetes', 'k8s'],
+  'kubernetes': ['k8s', 'docker', 'container orchestration'],
+  'ci/cd': ['continuous integration', 'continuous delivery', 'github actions', 'jenkins', 'gitlab ci', 'devops'],
+  'git': ['github', 'gitlab', 'version control', 'bitbucket'],
+
+  // Architecture & APIs
+  'rest': ['restful', 'rest api', 'rest apis', 'api development', 'graphql', 'microservices'],
+  'rest apis': ['rest', 'restful', 'api', 'graphql', 'microservices'],
+  'microservices': ['microservice', 'distributed systems', 'rest apis'],
+
+  // Testing & Quality
+  'testing': ['unit testing', 'jest', 'cypress', 'playwright', 'selenium', 'qa', 'test automation'],
+  'qa': ['quality assurance', 'testing', 'automation testing', 'manual testing'],
+
+  // Business, Accounting & Finance
+  'financial analysis': ['cash flow modeling', 'financial modeling', 'credit risk', 'cima', 'acca', 'cfa', 'commercial banking'],
+  'credit risk': ['credit analysis', 'credit risk assessment', 'commercial credit', 'lending'],
+  'credit risk assessment': ['credit risk', 'credit analysis', 'financial analysis', 'cima'],
+  'cash flow modeling': ['financial modeling', 'financial analysis', 'valuation', 'excel financial modeling'],
+  'corporate banking': ['commercial banking', 'banking', 'credit analysis', 'financial analysis'],
+  'accounting': ['financial accounting', 'management accounting', 'bookkeeping', 'cima', 'acca', 'ca sri lanka', 'quickbooks', 'audit'],
+  'cima': ['management accounting', 'financial analysis', 'accounting', 'acca', 'ca sri lanka'],
+  'acca': ['accounting', 'audit', 'financial analysis', 'cima'],
+  'cfa': ['financial analysis', 'investment', 'portfolio management'],
+
+  // Human Resources
+  'human resources': ['hr', 'hrm', 'cipm', 'talent acquisition', 'recruitment', 'employee relations'],
+  'talent acquisition': ['recruitment', 'sourcing', 'hiring', 'talent management'],
+  'cipm': ['human resources', 'hrm', 'hr management'],
+
+  // Healthcare
+  'pharmacology': ['clinical pharmacology', 'pharmacy', 'prescription auditing', 'slmc', 'therapeutic drug monitoring'],
+  'clinical pharmacology': ['pharmacology', 'pharmacy', 'prescription auditing', 'slmc'],
+  'slmc': ['medical council', 'registered pharmacist', 'doctor'],
+
+  // Agriculture
+  'agronomy': ['crop protection', 'soil nutrient analysis', 'field trial management', 'gap certification', 'agribusiness'],
+  'crop protection': ['agronomy', 'pest management', 'soil science'],
+  'gap certification': ['good agricultural practices', 'agronomy', 'quality standards'],
+
+  // Marketing & Sales
+  'digital marketing': ['seo', 'sem', 'google ads', 'social media marketing', 'content strategy'],
+  'b2b sales': ['sales', 'business development', 'lead generation', 'crm', 'salesforce'],
+};
+
+function checkSkillMatch(skillLower: string, resumeSkills: string[], resumeText: string): boolean {
+  // 1. Direct or substring match
+  if (resumeSkills.some((rs) => rs === skillLower || rs.includes(skillLower) || skillLower.includes(rs))) {
+    return true;
+  }
+  if (resumeText.includes(skillLower)) {
+    return true;
+  }
+
+  // 2. Check synonyms cluster
+  const synonyms = SKILL_SYNONYMS[skillLower] || [];
+  for (const syn of synonyms) {
+    if (resumeSkills.some((rs) => rs === syn || rs.includes(syn) || syn.includes(rs))) {
+      return true;
+    }
+    if (resumeText.includes(syn)) {
+      return true;
+    }
+  }
+
+  // 3. Normalized punctuation comparison (e.g. "node.js" vs "nodejs")
+  const normSkill = skillLower.replace(/[.\-_\s]/g, '');
+  if (normSkill.length > 2) {
+    if (resumeSkills.some((rs) => rs.replace(/[.\-_\s]/g, '') === normSkill)) {
+      return true;
+    }
+    const normText = resumeText.replace(/[.\-_\s]/g, '');
+    if (normText.includes(normSkill)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 export function calculateJobMatch(parsed: ParsedResume, job: JobListing): JobMatch {
   const resumeText = (parsed.rawText || '').toLowerCase();
   const resumeSkills = (parsed.skills || []).map((s) => s.toLowerCase());
@@ -221,9 +341,7 @@ export function calculateJobMatch(parsed: ParsedResume, job: JobListing): JobMat
 
   for (const skill of reqSkills) {
     const sLower = skill.toLowerCase();
-    const isDirectMatch = resumeSkills.some((rs) => rs === sLower || rs.includes(sLower) || sLower.includes(rs));
-    const isTextMatch = resumeText.includes(sLower);
-    if (isDirectMatch || isTextMatch) {
+    if (checkSkillMatch(sLower, resumeSkills, resumeText)) {
       reqMatched.push(skill);
     } else {
       reqMissing.push(skill);
@@ -238,9 +356,7 @@ export function calculateJobMatch(parsed: ParsedResume, job: JobListing): JobMat
 
   for (const skill of prefSkills) {
     const sLower = skill.toLowerCase();
-    const isDirectMatch = resumeSkills.some((rs) => rs === sLower || rs.includes(sLower) || sLower.includes(rs));
-    const isTextMatch = resumeText.includes(sLower);
-    if (isDirectMatch || isTextMatch) {
+    if (checkSkillMatch(sLower, resumeSkills, resumeText)) {
       prefMatched.push(skill);
     }
   }

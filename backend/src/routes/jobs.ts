@@ -11,6 +11,8 @@ import {
 } from '../services/supabaseService';
 import { calculateJobMatch } from '../services/jobMatchingService';
 import { getActiveJobListings } from '../services/jobProviderService';
+import { aiResumeService } from '../services/aiResumeService';
+import { config } from '../config';
 import { ApiResponse, JobListing, JobMatch } from '../types';
 
 // In-memory fallback sets for local/offline testing
@@ -193,11 +195,56 @@ jobsRouter.get('/recommendations', authenticate, async (req: AuthenticatedReques
       savedIds = Array.from(savedJobsStore.get(req.userId!) || []);
     }
 
-    // Match selected candidate CV against verified vacancies with deterministic weights
-    const matches: JobMatch[] = allJobs
+    // 1. Match selected candidate CV against verified vacancies with deterministic weights
+    let matches: JobMatch[] = allJobs
       .map((job) => calculateJobMatch(resume.parsedContent, job))
       .filter((m) => m.matchScore >= minScore)
       .sort((a, b) => b.matchScore - a.matchScore);
+
+    // 2. If AI is configured, run deep semantic reranking on the top recommendations using the Best AI Model (e.g. GPT-4o)
+    if (aiResumeService.isAIAvailable() && matches.length > 0) {
+      const topJobsToEvaluate = matches.slice(0, 10).map((m) => m.jobListing);
+      try {
+        const aiEvaluations = await aiResumeService.evaluateJobRecommendations(
+          resume.parsedContent,
+          topJobsToEvaluate
+        );
+
+        if (aiEvaluations.size > 0) {
+          matches = matches.map((m) => {
+            const aiEval = aiEvaluations.get(m.jobListing.id);
+            if (aiEval) {
+              const blendedScore = Math.round(aiEval.semanticScore * 0.70 + m.matchScore * 0.30);
+              const explanations = [
+                aiEval.rationale || m.explanations[0],
+                ...m.explanations.slice(1),
+              ];
+              if (aiEval.tailoringTip) {
+                explanations.push(`💡 Application Tip: ${aiEval.tailoringTip}`);
+              }
+              return {
+                ...m,
+                matchScore: blendedScore,
+                explanations,
+                missingRequirements: aiEval.missingSkills.length > 0 ? aiEval.missingSkills : m.missingRequirements,
+                aiInsights: {
+                  rationale: aiEval.rationale,
+                  keyStrengths: aiEval.keyStrengths,
+                  tailoringTip: aiEval.tailoringTip,
+                  model: config.ai.model,
+                  isAIGenerated: true,
+                },
+                isAIGenerated: true,
+                aiModel: config.ai.model,
+              };
+            }
+            return m;
+          }).sort((a, b) => b.matchScore - a.matchScore);
+        }
+      } catch (err) {
+        console.warn('[JobMatches] AI re-ranking notice:', (err as Error).message);
+      }
+    }
 
     // Persist matches asynchronously in PostgreSQL job_matches table
     for (const match of matches) {
@@ -222,6 +269,8 @@ jobsRouter.get('/recommendations', authenticate, async (req: AuthenticatedReques
         liveMatchCount: enriched.length,
         activeResumeId: resumeId,
         candidateName: resume.parsedContent?.fullName || 'Candidate',
+        aiEnhanced: aiResumeService.isAIAvailable(),
+        aiModel: config.ai.model || 'gpt-4o',
       },
     } as ApiResponse);
   } catch (err) {

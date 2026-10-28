@@ -31,8 +31,9 @@ export const config = {
   },
   ai: {
     apiKey: process.env.AI_API_KEY || '',
-    model: process.env.AI_MODEL || 'gpt-4o-mini',
+    model: process.env.AI_MODEL || 'gpt-4o', // Flagship Best AI Model for Maximum Accuracy & Reasoning
     provider: process.env.AI_PROVIDER || 'openai',
+    baseURL: process.env.AI_BASE_URL || '',
   },
   jobProvider: {
     apiKey: process.env.JOB_PROVIDER_API_KEY || '',

@@ -16,7 +16,7 @@ import {
   Briefcase, MapPin, DollarSign, Clock, Bookmark, BookmarkCheck,
   Search, Sparkles, Filter, ChevronRight, CheckCircle2, AlertCircle,
   ExternalLink, Building2, Send, RotateCcw, FileText, Check, ShieldCheck,
-  GraduationCap, Layers, ArrowUpRight, HelpCircle
+  GraduationCap, Layers, ArrowUpRight, HelpCircle, Globe, ChevronDown, ChevronUp
 } from 'lucide-react';
 
 interface JobListingItem {
@@ -51,6 +51,15 @@ interface JobListingItem {
     education: number;
     preferredSkills: number;
   };
+  aiInsights?: {
+    rationale?: string;
+    keyStrengths?: string[];
+    tailoringTip?: string;
+    model?: string;
+    isAIGenerated?: boolean;
+  };
+  isAIGenerated?: boolean;
+  aiModel?: string;
 }
 
 const INDUSTRY_CATEGORIES = [
@@ -83,6 +92,166 @@ const LOCATIONS = [
   'Remote (Sri Lanka)',
 ];
 
+interface SriLankanJobSite {
+  id: number;
+  name: string;
+  priority?: string;
+  badge?: string;
+  category: string;
+  description: string;
+  url: string;
+  linkText: string;
+  initials: string;
+  theme: {
+    iconBg: string;
+    accentBadge: string;
+  };
+}
+
+const TOP_SRI_LANKAN_JOB_SITES: SriLankanJobSite[] = [
+  {
+    id: 1,
+    name: 'TopJobs.lk',
+    priority: 'Priority 1',
+    category: 'General and professional careers',
+    description: 'Covers corporate, executive, technical, administrative and other vacancies.',
+    url: 'https://www.topjobs.lk/?utm_source=chatgpt.com',
+    linkText: 'Visit TopJobs.lk',
+    initials: 'TJ',
+    theme: {
+      iconBg: 'bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300',
+      accentBadge: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/60 dark:text-blue-300 dark:border-blue-800',
+    },
+  },
+  {
+    id: 2,
+    name: 'XpressJobs',
+    priority: 'Priority 1',
+    badge: 'Peak Lanka+1',
+    category: 'Multiple industries and career levels',
+    description: 'Useful for a broad range of local job opportunities.',
+    url: 'https://xpress.jobs/?utm_source=chatgpt.com',
+    linkText: 'Visit XpressJobs',
+    initials: 'XJ',
+    theme: {
+      iconBg: 'bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300',
+      accentBadge: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800',
+    },
+  },
+  {
+    id: 3,
+    name: 'LinkedIn Jobs',
+    badge: 'LinkedIn',
+    category: 'Professional, international and remote jobs',
+    description: 'Covers many industries, internships and international employers.',
+    url: 'https://www.linkedin.com/jobs/?utm_source=chatgpt.com',
+    linkText: 'Visit LinkedIn Jobs',
+    initials: 'in',
+    theme: {
+      iconBg: 'bg-sky-100 dark:bg-sky-950 text-sky-700 dark:text-sky-300',
+      accentBadge: 'bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950/60 dark:text-sky-300 dark:border-sky-800',
+    },
+  },
+  {
+    id: 4,
+    name: 'ikmanJOBS',
+    badge: 'ikmanJOBS',
+    category: 'Entry-level, service and general jobs',
+    description: 'Includes sales, administration, hospitality, finance, IT, internships and more.',
+    url: 'https://ikman.lk/en/jobs?utm_source=chatgpt.com',
+    linkText: 'Visit ikmanJOBS',
+    initials: 'ik',
+    theme: {
+      iconBg: 'bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300',
+      accentBadge: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800',
+    },
+  },
+  {
+    id: 5,
+    name: 'Observer JOBS',
+    badge: 'Observer JOBS',
+    category: 'Private and public-sector opportunities',
+    description: 'A useful source for vacancies across Sri Lanka.',
+    url: 'https://www.observerjobs.lk/?utm_source=chatgpt.com',
+    linkText: 'Visit Observer JOBS',
+    initials: 'OJ',
+    theme: {
+      iconBg: 'bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-300',
+      accentBadge: 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-800',
+    },
+  },
+  {
+    id: 6,
+    name: 'DreamJobs.lk',
+    badge: 'DreamJobs.lk',
+    category: 'Professional and industry-specific vacancies',
+    description: 'Consider for roles in areas such as education, marketing, healthcare and IT.',
+    url: 'https://www.dreamjobs.lk/?utm_source=chatgpt.com',
+    linkText: 'Visit DreamJobs.lk',
+    initials: 'DJ',
+    theme: {
+      iconBg: 'bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300',
+      accentBadge: 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/60 dark:text-purple-300 dark:border-purple-800',
+    },
+  },
+  {
+    id: 7,
+    name: 'Jobpal.lk',
+    badge: 'Peak Lanka+1',
+    category: 'Local jobs and varied employment types',
+    description: 'Another potential source for full-time, part-time, internship and other vacancies.',
+    url: 'https://jobpal.lk/?utm_source=chatgpt.com',
+    linkText: 'Visit Jobpal.lk',
+    initials: 'JP',
+    theme: {
+      iconBg: 'bg-teal-100 dark:bg-teal-950 text-teal-700 dark:text-teal-300',
+      accentBadge: 'bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-950/60 dark:text-teal-300 dark:border-teal-800',
+    },
+  },
+  {
+    id: 8,
+    name: 'GreatJobs.lk',
+    badge: 'greatjobs.lk',
+    category: 'Employer listings and job matching',
+    description: 'Potentially useful for expanding vacancy coverage and matching candidates to employers.',
+    url: 'https://www.greatjobs.lk/?utm_source=chatgpt.com',
+    linkText: 'Visit GreatJobs.lk',
+    initials: 'GJ',
+    theme: {
+      iconBg: 'bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300',
+      accentBadge: 'bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/60 dark:text-indigo-300 dark:border-indigo-800',
+    },
+  },
+  {
+    id: 9,
+    name: 'Career.lk',
+    badge: 'career.lk',
+    category: 'Jobs across many sectors',
+    description: 'Its categories include finance, engineering, healthcare, tourism, IT, sales and education.',
+    url: 'https://www.career.lk/?utm_source=chatgpt.com',
+    linkText: 'Visit Career.lk',
+    initials: 'CR',
+    theme: {
+      iconBg: 'bg-orange-100 dark:bg-orange-950 text-orange-700 dark:text-orange-300',
+      accentBadge: 'bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950/60 dark:text-orange-300 dark:border-orange-800',
+    },
+  },
+  {
+    id: 10,
+    name: 'ITPro.lk',
+    badge: 'Tech Specialist',
+    category: 'IT and technology-focused vacancies',
+    description: 'A specialist source for software, engineering, IT support and tech internships.',
+    url: 'https://www.itpro.lk',
+    linkText: 'Visit ITPro.lk',
+    initials: 'IT',
+    theme: {
+      iconBg: 'bg-cyan-100 dark:bg-cyan-950 text-cyan-700 dark:text-cyan-300',
+      accentBadge: 'bg-cyan-50 text-cyan-700 border-cyan-200 dark:bg-cyan-950/60 dark:text-cyan-300 dark:border-cyan-800',
+    },
+  },
+];
+
 export default function JobsPage() {
   const navigate = useNavigate();
   const { resumes, activeResumeId, setResumes, setActiveResume } = useResumeStore();
@@ -102,6 +271,7 @@ export default function JobsPage() {
   const [portalFilter, setPortalFilter] = useState('all');
   const [minMatchFilter, setMinMatchFilter] = useState<number>(0);
   const [sortBy, setSortBy] = useState<'match' | 'recent' | 'title' | 'company'>('match');
+  const [isSitesExpanded, setIsSitesExpanded] = useState(true);
 
   // Load existing resumes on mount if empty in store
   useEffect(() => {
@@ -183,6 +353,9 @@ export default function JobsPage() {
                 isEstimate: !!m.isEstimate,
                 explanations: m.explanations || [],
                 scoreBreakdown: m.scoreBreakdown,
+                aiInsights: m.aiInsights,
+                isAIGenerated: !!m.isAIGenerated,
+                aiModel: m.aiModel || recRes.meta?.aiModel,
               }));
             }
           } catch (recErr) {
@@ -553,96 +726,113 @@ export default function JobsPage() {
           </div>
         )}
 
-        {/* General Job Source Directory Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          <a
-            href="https://www.topjobs.lk"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="bg-white dark:bg-slate-900 hover:bg-blue-50/50 dark:hover:bg-slate-800/80 p-4 rounded-xl border border-gray-200 dark:border-slate-800 hover:border-blue-300 dark:hover:border-blue-700 shadow-xs transition-all group flex items-center justify-between"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 flex items-center justify-center font-bold text-sm shrink-0">
-                TJ
-              </div>
-              <div>
-                <div className="text-xs font-bold text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors flex items-center gap-1">
-                  TopJobs Sri Lanka <ExternalLink size={12} className="text-gray-400 group-hover:text-blue-600" />
+        {/* Top 10 Sri Lankan Job Sites for CareerMatch AI */}
+        <section aria-labelledby="top-sri-lankan-job-sites" className="space-y-3">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 p-5 shadow-xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-blue-600 dark:bg-blue-500 text-white flex items-center justify-center font-bold shrink-0 shadow-sm">
+                  <Globe size={20} />
                 </div>
-                <p className="text-[11px] text-gray-500 dark:text-slate-400">All-Industry Local Directory</p>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h2 id="top-sri-lankan-job-sites" className="text-sm sm:text-base font-bold text-gray-900 dark:text-white">
+                      Top 10 Sri Lankan job sites for CareerMatch AI
+                    </h2>
+                    <span className="text-[11px] font-semibold text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/70 px-2.5 py-0.5 rounded-full border border-blue-200 dark:border-blue-800">
+                      Top 10 Directory
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">
+                    Curated employment directories, professional networks, and industry specialists across Sri Lanka.
+                  </p>
+                </div>
               </div>
-            </div>
-            <span className="text-[10px] font-semibold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 px-2.5 py-1 rounded-full border border-blue-200 dark:border-blue-800">
-              Verified ↗
-            </span>
-          </a>
 
-          <a
-            href="https://expressjobs.lk"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="bg-white dark:bg-slate-900 hover:bg-emerald-50/50 dark:hover:bg-slate-800/80 p-4 rounded-xl border border-gray-200 dark:border-slate-800 hover:border-emerald-300 dark:hover:border-emerald-700 shadow-xs transition-all group flex items-center justify-between"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 flex items-center justify-center font-bold text-sm shrink-0">
-                XJ
-              </div>
-              <div>
-                <div className="text-xs font-bold text-gray-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors flex items-center gap-1">
-                  XpressJobs <ExternalLink size={12} className="text-gray-400 group-hover:text-emerald-600" />
-                </div>
-                <p className="text-[11px] text-gray-500 dark:text-slate-400">Corporate &amp; Commercial</p>
+              <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsSitesExpanded(!isSitesExpanded)}
+                  className="text-xs gap-1.5 dark:border-slate-700 dark:hover:bg-slate-800"
+                >
+                  {isSitesExpanded ? (
+                    <>
+                      <span>Hide Sites</span>
+                      <ChevronUp size={13} />
+                    </>
+                  ) : (
+                    <>
+                      <span>Show All 10 Sites</span>
+                      <ChevronDown size={13} />
+                    </>
+                  )}
+                </Button>
               </div>
             </div>
-            <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2.5 py-1 rounded-full border border-emerald-200 dark:border-emerald-800">
-              Verified ↗
-            </span>
-          </a>
 
-          <a
-            href="https://www.linkedin.com/jobs/search/?location=Sri%20Lanka"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="bg-white dark:bg-slate-900 hover:bg-sky-50/50 dark:hover:bg-slate-800/80 p-4 rounded-xl border border-gray-200 dark:border-slate-800 hover:border-sky-300 dark:hover:border-sky-700 shadow-xs transition-all group flex items-center justify-between"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-sky-100 dark:bg-sky-950 text-sky-700 dark:text-sky-300 flex items-center justify-center font-bold text-sm shrink-0">
-                in
-              </div>
-              <div>
-                <div className="text-xs font-bold text-gray-900 dark:text-white group-hover:text-sky-600 dark:group-hover:text-sky-400 transition-colors flex items-center gap-1">
-                  LinkedIn Sri Lanka <ExternalLink size={12} className="text-gray-400 group-hover:text-sky-600" />
-                </div>
-                <p className="text-[11px] text-gray-500 dark:text-slate-400">Professional &amp; Executive</p>
-              </div>
-            </div>
-            <span className="text-[10px] font-semibold text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-sky-950/60 px-2.5 py-1 rounded-full border border-sky-200 dark:border-sky-800">
-              Verified ↗
-            </span>
-          </a>
+            {isSitesExpanded && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 pt-1">
+                {TOP_SRI_LANKAN_JOB_SITES.map((site) => (
+                  <div
+                    key={site.id}
+                    className="bg-gray-50/70 dark:bg-slate-800/50 hover:bg-white dark:hover:bg-slate-800/90 rounded-xl border border-gray-200 dark:border-slate-700/80 hover:border-blue-400 dark:hover:border-blue-500 p-3.5 flex flex-col justify-between transition-all duration-200 hover:shadow-xs group"
+                  >
+                    <div className="space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs shrink-0 ${site.theme.iconBg}`}>
+                            {site.initials}
+                          </div>
+                          <div className="min-w-0">
+                            <span className="text-[10px] font-bold text-gray-400 dark:text-slate-500 block leading-none">
+                              #{site.id}
+                            </span>
+                            <h3 className="text-xs font-bold text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors truncate">
+                              {site.name}
+                            </h3>
+                          </div>
+                        </div>
 
-          <a
-            href="https://careers.keells.com/"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="bg-white dark:bg-slate-900 hover:bg-purple-50/50 dark:hover:bg-slate-800/80 p-4 rounded-xl border border-gray-200 dark:border-slate-800 hover:border-purple-300 dark:hover:border-purple-700 shadow-xs transition-all group flex items-center justify-between"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 flex items-center justify-center font-bold text-sm shrink-0">
-                <Building2 size={18} />
+                        <div className="flex flex-col items-end gap-1 shrink-0">
+                          {site.priority && (
+                            <span className="text-[9px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/70 px-1.5 py-0.5 rounded border border-emerald-200 dark:border-emerald-800 uppercase tracking-wider">
+                              {site.priority}
+                            </span>
+                          )}
+                          {site.badge && (
+                            <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded border ${site.theme.accentBadge}`}>
+                              {site.badge}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="pt-0.5">
+                        <p className="text-[11px] font-semibold text-gray-800 dark:text-slate-200 leading-snug">
+                          {site.category}
+                        </p>
+                        <p className="text-[11px] text-gray-500 dark:text-slate-400 mt-1 line-clamp-3 leading-relaxed">
+                          {site.description}
+                        </p>
+                      </div>
+                    </div>
+
+                    <a
+                      href={site.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-3 inline-flex items-center justify-center gap-1.5 w-full py-1.5 px-3 rounded-lg text-xs font-semibold bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 border border-gray-200 dark:border-slate-700 hover:bg-blue-600 hover:text-white hover:border-blue-600 dark:hover:bg-blue-600 dark:hover:text-white dark:hover:border-blue-600 transition-colors shadow-2xs"
+                    >
+                      <span>{site.linkText}</span>
+                      <ExternalLink size={12} className="shrink-0" />
+                    </a>
+                  </div>
+                ))}
               </div>
-              <div>
-                <div className="text-xs font-bold text-gray-900 dark:text-white group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors flex items-center gap-1">
-                  Employer Portals <ExternalLink size={12} className="text-gray-400 group-hover:text-purple-600" />
-                </div>
-                <p className="text-[11px] text-gray-500 dark:text-slate-400">MAS, Keells, ComBank, Hayleys</p>
-              </div>
-            </div>
-            <span className="text-[10px] font-semibold text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/60 px-2.5 py-1 rounded-full border border-purple-200 dark:border-purple-800">
-              Official ↗
-            </span>
-          </a>
-        </div>
+            )}
+          </div>
+        </section>
 
         {/* Universal Search & Multi-Industry Filter Controls */}
         <Card className="p-5 shadow-xs border-gray-200 dark:border-slate-800 dark:bg-slate-900 space-y-4">
@@ -775,10 +965,10 @@ export default function JobsPage() {
               </select>
             </div>
 
-            {/* 6. Source Portal */}
+            {/* 6. Job Source */}
             <div>
               <label className="text-[11px] font-bold text-gray-500 dark:text-slate-400 block mb-1">
-                Source Portal
+                Job Source
               </label>
               <select
                 value={portalFilter}
@@ -932,6 +1122,24 @@ export default function JobsPage() {
                           </>
                         )}
                       </div>
+
+                      {/* AI Fit Analysis Rationale */}
+                      {job.aiInsights?.rationale && (
+                        <div className="mt-2.5 p-3 rounded-xl bg-gradient-to-r from-blue-50/90 via-indigo-50/50 to-transparent dark:from-blue-950/40 dark:via-indigo-950/20 dark:to-transparent border border-blue-100 dark:border-blue-900/50 text-xs space-y-1">
+                          <div className="flex items-center gap-1.5 font-bold text-blue-900 dark:text-blue-300 text-[11px]">
+                            <Sparkles size={12} className="text-blue-600 dark:text-blue-400 shrink-0" />
+                            <span>AI Fit Analysis:</span>
+                          </div>
+                          <p className="text-gray-700 dark:text-slate-300 text-[11px] leading-relaxed">
+                            {job.aiInsights.rationale}
+                          </p>
+                          {job.aiInsights.tailoringTip && (
+                            <p className="text-[10px] text-blue-700 dark:text-blue-400 font-semibold pt-0.5">
+                              💡 <strong>Application Tip:</strong> {job.aiInsights.tailoringTip}
+                            </p>
+                          )}
+                        </div>
+                      )}
                     </div>
 
                     {/* Right side: Match score & Actions */}

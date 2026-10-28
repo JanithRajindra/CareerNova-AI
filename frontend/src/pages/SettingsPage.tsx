@@ -5,7 +5,7 @@ import { Card, Button, Alert, Modal, Badge } from '@/components/ui';
 import { useAuthStore, useResumeStore, useAnalysisStore, useThemeStore } from '@/store';
 import { supabase } from '@/lib/supabase';
 import { clearCareerMatchCache, type ClearCacheResult } from '@/lib/cache';
-import { getProfile, updateProfile, getAIStatus, testAIConnection, deleteAccount } from '@/lib/api';
+import { getProfile, updateProfile, getAIStatus, testAIConnection, configureAI, deleteAccount } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import {
   User, Sun, Moon, Laptop, Sparkles, Bell, Shield, Key, Database,
@@ -92,9 +92,10 @@ export default function SettingsPage() {
 
   // 2. AI Engine State
   const [aiProvider, setAiProvider] = useState('OpenAI');
-  const [aiModel, setAiModel] = useState('gpt-4o-mini');
+  const [aiModel, setAiModel] = useState('gpt-4o');
   const [customApiKey, setCustomApiKey] = useState('');
   const [testingAI, setTestingAI] = useState(false);
+  const [savingAI, setSavingAI] = useState(false);
   const [aiTestResult, setAiTestResult] = useState<{ success: boolean; message: string; latency?: number } | null>(null);
 
   // 3. Notifications State
@@ -268,6 +269,37 @@ export default function SettingsPage() {
       });
     } finally {
       setTestingAI(false);
+    }
+  }
+
+  // Handle Apply & Save AI Model Configuration
+  async function handleApplyAIConfig() {
+    setSavingAI(true);
+    setAiTestResult(null);
+    try {
+      const res = await configureAI({
+        apiKey: customApiKey.trim() || undefined,
+        model: aiModel,
+        provider: 'openai',
+      });
+      if (res?.success) {
+        setAiTestResult({
+          success: true,
+          message: res.message || `Active AI Model set to ${aiModel}. Job recommendations engine will use this model for deep semantic evaluation.`,
+        });
+      } else {
+        setAiTestResult({
+          success: false,
+          message: res?.error || 'Failed to apply AI model configuration.',
+        });
+      }
+    } catch (err: any) {
+      setAiTestResult({
+        success: false,
+        message: err?.message || 'Failed to update AI model configuration.',
+      });
+    } finally {
+      setSavingAI(false);
     }
   }
 
@@ -948,8 +980,26 @@ export default function SettingsPage() {
               </div>
 
               <div className="p-4 bg-gray-50 dark:bg-slate-800/60 rounded-xl border border-gray-200 dark:border-slate-700">
-                <span className="text-xs text-gray-500 dark:text-slate-400 block mb-1">Configured AI Model</span>
-                <p className="text-sm font-bold text-gray-900 dark:text-white font-mono">{aiModel}</p>
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-xs text-gray-700 dark:text-slate-300 font-semibold">Select AI Model for Recommendations</span>
+                  <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/70 px-2 py-0.5 rounded border border-blue-200 dark:border-blue-800">
+                    Highest Precision
+                  </span>
+                </div>
+                <select
+                  value={aiModel}
+                  onChange={(e) => setAiModel(e.target.value)}
+                  className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-slate-100 px-3 py-2 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="gpt-4o">GPT-4o (Flagship — Best AI Model for Maximum Accuracy &amp; Reasoning)</option>
+                  <option value="gpt-4o-mini">GPT-4o Mini (High Speed &amp; Efficiency)</option>
+                  <option value="o3-mini">o3-mini (Advanced Reasoning &amp; Deep Skill Logic)</option>
+                  <option value="gemini-1.5-pro">Gemini 1.5 Pro (Google Gemini Frontier Reasoning)</option>
+                  <option value="claude-3-5-sonnet">Claude 3.5 Sonnet (Nuanced Semantic Profile Analysis)</option>
+                </select>
+                <p className="text-[11px] text-gray-500 dark:text-slate-400 mt-1.5">
+                  <strong>GPT-4o</strong> is recommended for the most accurate job recommendations, semantic alignment, and candidate tailoring.
+                </p>
               </div>
             </div>
 
@@ -967,17 +1017,30 @@ export default function SettingsPage() {
                     placeholder="sk-proj-... (Leave blank to test server-side key)"
                     className="flex-1 rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-slate-100 px-3.5 py-2 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    loading={testingAI}
-                    onClick={handleTestAI}
-                    className="gap-1.5 whitespace-nowrap"
-                  >
-                    <RefreshCw size={14} />
-                    Test Connection
-                  </Button>
+                  <div className="flex gap-2 flex-wrap">
+                    <Button
+                      type="button"
+                      variant="primary"
+                      size="sm"
+                      loading={savingAI}
+                      onClick={handleApplyAIConfig}
+                      className="gap-1.5 whitespace-nowrap bg-blue-600 hover:bg-blue-700 text-white"
+                    >
+                      <Save size={14} />
+                      Save &amp; Apply Model
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      loading={testingAI}
+                      onClick={handleTestAI}
+                      className="gap-1.5 whitespace-nowrap dark:border-slate-700"
+                    >
+                      <RefreshCw size={14} />
+                      Test Connection
+                    </Button>
+                  </div>
                 </div>
                 <p className="text-[11px] text-gray-400 dark:text-slate-500 mt-1">
                   Transmitted securely to the server for live ping validation. Keys are never logged or stored in ordinary localStorage.

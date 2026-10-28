@@ -147,6 +147,14 @@ export interface JobListing {
   updatedAt: string;
 }
 
+export interface JobMatchAIInsights {
+  rationale?: string;
+  keyStrengths?: string[];
+  tailoringTip?: string;
+  model?: string;
+  isAIGenerated?: boolean;
+}
+
 export interface JobMatch {
   id: string;
   jobListing: JobListing;
@@ -156,6 +164,9 @@ export interface JobMatch {
   explanations: string[];
   scoreBreakdown: JobMatchBreakdown;
   isEstimate?: boolean;
+  aiInsights?: JobMatchAIInsights;
+  isAIGenerated?: boolean;
+  aiModel?: string;
 }
 
 export interface JobMatchBreakdown {

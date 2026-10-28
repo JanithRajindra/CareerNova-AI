@@ -1,6 +1,7 @@
 import { Router, Response } from 'express';
 import { authenticate, AuthenticatedRequest } from '../middleware/auth';
 import { config } from '../config';
+import { aiResumeService } from '../services/aiResumeService';
 import { ApiResponse } from '../types';
 
 export const aiRouter = Router();
@@ -13,7 +14,7 @@ aiRouter.get('/status', authenticate, async (_req: AuthenticatedRequest, res: Re
     success: true,
     data: {
       provider: config.ai.provider || 'openai',
-      activeModel: config.ai.model || 'gpt-4o-mini',
+      activeModel: config.ai.model || 'gpt-4o',
       isConfigured: isServerConfigured,
       testSupported: true,
       scoringEngine: 'ATS Deterministic Scoring Engine (Rule-based, 100% independent)',
@@ -23,6 +24,37 @@ aiRouter.get('/status', authenticate, async (_req: AuthenticatedRequest, res: Re
         aiSuggestions: isServerConfigured,
         customKeyTesting: true,
       },
+    },
+  } as ApiResponse);
+});
+
+// POST /api/v1/ai/configure — Update runtime AI model, key, and provider
+aiRouter.post('/configure', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+  const { apiKey, model, provider } = req.body as {
+    apiKey?: string;
+    model?: string;
+    provider?: string;
+  };
+
+  if (model) {
+    config.ai.model = model.trim();
+  }
+  if (apiKey !== undefined) {
+    config.ai.apiKey = apiKey.trim();
+  }
+  if (provider) {
+    config.ai.provider = provider.trim();
+  }
+
+  aiResumeService.refreshAvailability();
+
+  res.json({
+    success: true,
+    message: `Active AI Model set to ${config.ai.model} (${config.ai.provider}).`,
+    data: {
+      provider: config.ai.provider,
+      activeModel: config.ai.model,
+      isConfigured: Boolean(config.ai.apiKey && config.ai.apiKey.length > 0),
     },
   } as ApiResponse);
 });
@@ -37,7 +69,7 @@ aiRouter.post('/test', authenticate, async (req: AuthenticatedRequest, res: Resp
   };
 
   const effectiveKey = apiKey?.trim() || config.ai.apiKey;
-  const effectiveModel = model?.trim() || config.ai.model || 'gpt-4o-mini';
+  const effectiveModel = model?.trim() || config.ai.model || 'gpt-4o';
 
   if (!effectiveKey) {
     res.status(400).json({
